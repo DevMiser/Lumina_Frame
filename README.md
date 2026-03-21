@@ -177,16 +177,59 @@ ls /home/pi/Lumina/Lumina_Frame_Logo.png
 
 If the file is missing, copy or move it to that path.
 
-### 8. Verify Your Audio Device Index
+### 8. Pin Your Speakerphone to ALSA Card Index 1
 
-Lumina Frame is configured to use ALSA card index **1** for the USB speakerphone. Verify your speakerphone is assigned to card 1 by entering:
+Lumina Frame is configured to use ALSA card index **1** for the USB speakerphone. To ensure your speakerphone is always assigned to card 1 — regardless of the order devices are detected at boot — you need to pin it in the ALSA module configuration.
+
+Open a terminal and enter:
+
+```
+sudo nano /etc/modprobe.d/alsa-base.conf
+```
+
+If you are using the same USB speakerphone as the one used in this project, paste the following line into the file:
+
+```
+options snd-usb-audio index=1 vid=0xf201 pid=0x3220
+```
+
+Press **Ctrl + X**, then **Y**, then **Enter** to save, then reboot:
+
+```
+sudo reboot
+```
+
+After rebooting, open a terminal and enter:
 
 ```
 aplay -l
-arecord -l
 ```
 
-Look for your USB speakerphone in the output and note its card number. If it is not card 1, edit `Lumina_Frame.py` and update the card index in the `amixer` command near the top of the `main()` function.
+You should see your USB speakerphone listed at **card 1**, similar to:
+
+```
+card 1: USB [USB Audio Device], device 0: ...
+```
+
+**If you are using a different speakerphone**, you will need to find its Vendor ID and Product ID first. Enter the following command:
+
+```
+lsusb
+```
+
+You will see output similar to:
+
+```
+Bus 001 Device 004: ID 1234:5678 Acme USB Speakerphone
+```
+
+The portion after **ID** contains your Vendor ID and Product ID separated by a colon — `1234` and `5678` in the example above (your numbers will be different). Then redo the steps above, substituting your actual Vendor ID and Product ID:
+
+```
+options snd-usb-audio index=1 vid=0x1234 pid=0x5678
+```
+
+This ensures Lumina Frame can reliably adjust the microphone gain via ALSA Mixer each time the program starts.
 
 ---
 
