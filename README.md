@@ -32,6 +32,8 @@ https://www.waveshare.com/product/raspberry-pi/displays/lcd-oled/8inch-dsi-lcd.h
 
 **USB Speakerphone** — A USB speakerphone provides both microphone input and speaker output in a single device. Any USB speakerphone should work. Lumina Frame is configured to use card index 1 for audio — verify yours matches using `aplay -l` and `arecord -l` after connecting it.
 
+> **Important:** Plug the USB speakerphone into one of the **black USB 2.0 ports** (closest to the sides of the board), not the blue USB 3.0 ports (in the middle). The USB 3.0 controller on the Pi (VL805) generates more RF noise, which can interfere with the speakerphone's mic circuitry, and can occasionally introduce timing differences during enumeration that prevent the speakerphone from being assigned the correct sound card index.
+
 **LED and Resistor (optional)** — An LED connected to GPIO pin 18 (with an appropriate current-limiting resistor) will illuminate while Lumina is listening during a session.
 
 **MicroSD Card** — A 32 GB or larger Class 10 card is recommended.
@@ -187,9 +189,10 @@ Open a terminal and enter:
 sudo nano /etc/modprobe.d/alsa-base.conf
 ```
 
-If you are using the same USB speakerphone as the one used in this project, paste the following line into the file:
+If you are using the same USB speakerphone as the one used in this project, paste the following lines into the file:
 
 ```
+options snd_bcm2835 index=-2
 options snd-usb-audio index=1 vid=0xf201 pid=0x3220
 ```
 
@@ -226,6 +229,7 @@ Bus 001 Device 004: ID 1234:5678 Acme USB Speakerphone
 The portion after **ID** contains your Vendor ID and Product ID separated by a colon — `1234` and `5678` in the example above (your numbers will be different). Then redo the steps above, substituting your actual Vendor ID and Product ID:
 
 ```
+options snd_bcm2835 index=-2
 options snd-usb-audio index=1 vid=0x1234 pid=0x5678
 ```
 
