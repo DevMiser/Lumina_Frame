@@ -34,8 +34,6 @@ https://www.waveshare.com/product/raspberry-pi/displays/lcd-oled/8inch-dsi-lcd.h
 
 > **Important:** Plug the USB speakerphone into one of the **black USB 2.0 ports** (closest to the sides of the board), not the blue USB 3.0 ports (in the middle). The USB 3.0 controller on the Pi (VL805) generates more RF noise, which can interfere with the speakerphone's mic circuitry, and can occasionally introduce timing differences during enumeration that prevent the speakerphone from being assigned the correct sound card index.
 
-**LED and Resistor (optional)** — An LED connected to GPIO pin 18 (with an appropriate current-limiting resistor) will illuminate while Lumina is listening during a session.
-
 **MicroSD Card** — A 32 GB or larger Class 10 card is recommended.
 
 ---
@@ -259,7 +257,7 @@ Say the wake word:
 
 > **"Lumina"**
 
-When Lumina detects its wake word, the LED on GPIO pin 18 will illuminate and Lumina will begin listening. The display will show a waveform that animates in sync with Lumina's voice as it responds.
+When Lumina detects its wake word, Lumina will begin listening. The display will show a waveform that animates in sync with Lumina's voice as it responds.
 
 ### Talking to Lumina
 
