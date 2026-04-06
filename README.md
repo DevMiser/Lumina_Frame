@@ -3,7 +3,7 @@
 
 Lumina Frame is a voice-activated AI assistant with an integrated AI art generator, running on a Raspberry Pi 4 with an attached DSI touchscreen display and USB speakerphone. Say the wake word **"Lumina"** to start a conversation. Ask questions, request the time or weather, and ask Lumina to generate and display AI artwork — all by voice.
 
-Lumina Frame uses PicoVoice Porcupine for wake-word detection, PicoVoice Koala for noise suppression, the OpenAI Realtime API for conversational voice AI, and the Google Gemini API for AI image generation.
+Lumina Frame uses PicoVoice Porcupine for wake-word detection, the OpenAI Realtime API for conversational voice AI, and the Google Gemini API for AI image generation.
 
 A brief demo video of Lumina Frame is here: *(add your link)*
 
@@ -28,7 +28,7 @@ The following steps are required:
 **5V Power Supply** — Use the official Raspberry Pi USB-C power supply or equivalent.
 
 **Waveshare 8-inch DSI LCD Display** — This is the display Lumina Frame is designed for. It connects directly to the Raspberry Pi 4 via the DSI ribbon cable connector.
-https://www.waveshare.com/product/raspberry-pi/displays/lcd-oled/8inch-dsi-lcd.htm
+https://www.waveshare.com/8inch-DSI-LCD-C.htm
 
 **USB Speakerphone** — A USB speakerphone provides both microphone input and speaker output in a single device. Any USB speakerphone should work. Lumina Frame is configured to use card index 1 for audio — verify yours matches using `aplay -l` and `arecord -l` after connecting it.
 
@@ -58,7 +58,7 @@ Click **Start Free** in the upper right-hand corner and follow the prompts to cr
 
 After signing up, you will be redirected to a page showing your **AccessKey**. Copy it and keep it in a secure location. You will need it in a later step.
 
-> **Note:** The free PicoVoice tier has usage limits. Lumina Frame uses both Porcupine (wake word detection) and Koala (noise suppression), both of which draw from your access key's quota.
+> **Note:** The free PicoVoice tier has usage limits. Lumina Frame uses Porcupine for wake word detection, which draws from your access key's quota.
 
 ---
 
