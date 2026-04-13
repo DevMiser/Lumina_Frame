@@ -93,7 +93,33 @@ sudo reboot
 
 Log back in after the reboot.
 
-### 2. Install System-Level Dependencies
+### 2. Install the Waveshare Display Driver
+
+The Waveshare 8inch DSI LCD (C) driver is built into the Raspberry Pi OS Bookworm kernel — no manual driver installation is required. You simply need to add one line to the Raspberry Pi configuration file to enable it.
+
+Open the configuration file:
+
+```
+sudo nano /boot/firmware/config.txt
+```
+
+Scroll to the very end of the file and add the following line:
+
+```
+dtoverlay=vc4-kms-dsi-waveshare-panel,8_0_inch
+```
+
+Press **Ctrl + X**, then **Y**, then **Enter** to save. Then reboot:
+
+```
+sudo reboot
+```
+
+After rebooting, the Waveshare display should be active. If the display remains black, confirm the DSI ribbon cable is fully seated at both ends and that the cable's gold contacts are oriented correctly.
+
+> **Note:** If you later run `sudo apt full-upgrade` and the display stops working, re-open `/boot/firmware/config.txt` and verify the `dtoverlay` line is still present. A system upgrade can occasionally overwrite kernel overlay files, and re-saving the config line and rebooting is all that is needed to restore normal operation.
+
+### 3. Install System-Level Dependencies
 
 Some packages must be installed at the system level via `apt` before setting up the Python environment. Open a terminal and enter the following commands in order:
 
@@ -105,7 +131,7 @@ sudo apt-get install libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf
 
 If asked whether you want to continue, enter **Y** and press Enter.
 
-### 3. Clone the Lumina Frame Repository
+### 4. Clone the Lumina Frame Repository
 
 Open a terminal and enter the following commands:
 
@@ -125,7 +151,7 @@ cp -r /home/pi/Lumina_Frame/* /home/pi/Lumina/
 cd /home/pi/Lumina
 ```
 
-### 4. Create a Python Virtual Environment
+### 5. Create a Python Virtual Environment
 
 Because Raspberry Pi OS Bookworm enforces PEP 668, all Python packages must be installed inside a virtual environment rather than system-wide. Create and activate a virtual environment by entering the following commands:
 
@@ -136,7 +162,7 @@ source venv/bin/activate
 
 Your terminal prompt will change to show `(venv)` at the beginning, confirming the virtual environment is active.
 
-### 5. Install Python Dependencies
+### 6. Install Python Dependencies
 
 With the virtual environment active, install all required packages:
 
@@ -146,7 +172,7 @@ pip install -r requirements.txt
 
 This may take several minutes on a Raspberry Pi 4.
 
-### 6. Create Your .env File with Your API Keys
+### 7. Create Your .env File with Your API Keys
 
 Lumina Frame loads its API keys from a `.env` file located in the same folder as `Lumina_Frame.py`. Create this file by entering the following commands:
 
@@ -167,7 +193,7 @@ Press **Ctrl + X**, then **Y**, then **Enter** to save the file.
 
 > **Important:** Never share your `.env` file or commit it to a public repository. The `.gitignore` file included with this project is already configured to exclude it.
 
-### 7. Verify the Logo File Is in Place
+### 8. Verify the Logo File Is in Place
 
 Lumina Frame displays a logo on startup. Confirm the logo file is present at the expected location:
 
@@ -177,7 +203,7 @@ ls /home/pi/Lumina/Lumina_Frame_Logo.png
 
 If the file is missing, copy or move it to that path.
 
-### 8. Pin Your Speakerphone to ALSA Card Index 1
+### 9. Pin Your Speakerphone to ALSA Card Index 1
 
 Lumina Frame is configured to use ALSA card index **1** for the USB speakerphone. To ensure your speakerphone is always assigned to card 1 — regardless of the order devices are detected at boot — you need to pin it in the ALSA module configuration.
 
