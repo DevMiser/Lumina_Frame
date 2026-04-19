@@ -1,9 +1,9 @@
 # Lumina Frame
 ### AI Voice Assistant & Art Generator for Raspberry Pi 4
 
-Lumina Frame is a voice-activated AI assistant with an integrated AI art generator, running on a Raspberry Pi 4 with an attached DSI touchscreen display and USB speakerphone. Say the wake word **"Lumina"** to start a conversation. Ask questions, request the time or weather, and ask Lumina to generate and display AI artwork — all by voice.
+Lumina Frame is a voice-activated AI assistant with an integrated AI art generator, running on a Raspberry Pi 4 with an attached DSI touchscreen display and USB speakerphone. Say the wake word **"Hey Lumina"** to start a conversation. Ask questions, request the time or weather, generate and display AI artwork, set countdown timers, recall previously saved images, and more — all by voice.
 
-Lumina Frame uses PicoVoice Porcupine for wake-word detection, the OpenAI Realtime API for conversational voice AI, and the Google Gemini API for AI image generation.
+Lumina Frame uses PicoVoice Porcupine for wake-word detection, the OpenAI Realtime API for conversational voice AI, the Google Gemini API for AI image generation, and the OpenWeather API for current weather conditions and multi-day forecasts.
 
 A brief demo video of Lumina Frame is here: *(add your link)*
 
@@ -17,6 +17,7 @@ The following steps are required:
 - Create an OpenAI account and obtain your personal secret API key
 - Create a PicoVoice account and obtain your personal secret access key
 - Create a Google account and obtain your personal Gemini API key
+- Create an OpenWeather account and obtain your personal API key
 - Follow the steps below to prepare your Raspberry Pi 4 and install the software
 
 ---
@@ -69,6 +70,16 @@ Open a web browser and navigate to https://aistudio.google.com/.
 Sign in with your Google account and click **Get API key**, then click **Create API key**. Copy your API key and keep it in a secure location. You will need it in a later step.
 
 > **Note:** A free Gemini API tier is available, though it has rate limits. Image generation requires a model that supports it — Lumina Frame uses `gemini-3.1-flash-image-preview`. Check https://ai.google.dev/ for current model availability.
+
+---
+
+## Create an OpenWeather Account and Obtain Your API Key
+
+Open a web browser and navigate to https://openweathermap.org/.
+
+Click **Sign In** and create a free account. Once logged in, navigate to your profile and select **My API keys**. Copy the default key or generate a new one. Keep it in a secure location. You will need it in a later step.
+
+> **Note:** The free OpenWeather tier is sufficient for Lumina Frame. It provides access to the current weather endpoint and the 5-day/3-hour forecast endpoint used for weather queries.
 
 ---
 
@@ -174,19 +185,20 @@ This may take several minutes on a Raspberry Pi 4.
 
 ### 7. Create Your .env File with Your API Keys
 
-Lumina Frame loads its API keys from a `.env` file located in the same folder as `Lumina_Frame.py`. Create this file by entering the following commands:
+Lumina Frame loads its API keys from a `.env` file located in the same folder as `Lumina_Frame8.py`. Create this file by entering the following commands:
 
 ```
 cd /home/pi/Lumina
 nano .env
 ```
 
-Add the following three lines to the file, replacing the placeholder text with your actual keys:
+Add the following four lines to the file, replacing the placeholder text with your actual keys:
 
 ```
 OPENAI_API_KEY=your_openai_api_key_here
 PICOVOICE_ACCESS_KEY=your_picovoice_access_key_here
 GOOGLE_API_KEY=your_google_api_key_here
+OPENWEATHER_API_KEY=your_openweather_api_key_here
 ```
 
 Press **Ctrl + X**, then **Y**, then **Enter** to save the file.
@@ -268,7 +280,7 @@ Make sure your Waveshare DSI display is connected and your USB speakerphone is p
 ```
 cd /home/pi/Lumina
 source venv/bin/activate
-python Lumina_Frame.py
+python Lumina_Frame8.py
 ```
 
 Wait for the Lumina logo to appear on the DSI display.
@@ -281,9 +293,9 @@ Wait for the Lumina logo to appear on the DSI display.
 
 Say the wake word:
 
-> **"Lumina"**
+> **"Hey Lumina"**
 
-When Lumina detects its wake word, Lumina will begin listening. The display will show a waveform that animates in sync with Lumina's voice as it responds.
+When Lumina detects its wake word, it will begin listening. The display will show a waveform that animates in sync with Lumina's voice as it responds. You can also say **"Hey Lumina"** at any time to interrupt Lumina mid-response and ask a new question.
 
 ### Talking to Lumina
 
@@ -292,6 +304,8 @@ Once awake, speak naturally. Lumina will respond conversationally. For example:
 *What time is it?*
 
 *What's the weather like today?*
+
+*What will the weather be like on Friday?*
 
 *What is the capital of Australia?*
 
@@ -307,7 +321,7 @@ Ask Lumina to create AI-generated artwork using natural language. For example:
 
 *Create an image of a bustling Japanese street market at night.*
 
-Lumina will acknowledge your request, generate the image using Google Gemini, and display it on the DSI screen.
+Lumina will acknowledge your request, generate the image using Google Gemini, and display it on the DSI screen. The image aspect ratio is selected automatically based on your display's resolution.
 
 ### Saving Images
 
@@ -317,17 +331,71 @@ To save the most recently generated image to `/home/pi/Lumina/Saved_Images/`, sa
 
 Lumina will confirm the filename after saving.
 
+### Recalling Saved Images
+
+To find and display a previously saved image, say:
+
+*Find the picture of the sunset.*
+
+*Show me the painting of a cat.*
+
+*Recall the image of the Japanese street market.*
+
+Lumina will search your saved images by description and display the closest match. If no match is found, Lumina will let you know and suggest trying different words.
+
+### Listing Saved Images
+
+To hear what images have been saved, say:
+
+*What images have you saved?*
+
+*Tell me about the pictures you have.*
+
+Lumina will describe a random sample of saved images and let you know how many are saved in total.
+
+### Setting Timers
+
+Lumina supports multiple named countdown timers. For example:
+
+*Set a ten-minute timer.*
+
+*Set a pasta timer for twelve minutes.*
+
+*How much time is left on the pasta timer?*
+
+*Cancel the pasta timer.*
+
+While a timer is running, the display shows a live countdown. When a timer finishes, Lumina will announce it. If no session is active when the timer fires, a chime will play and the finish message will appear on the display.
+
 ### Controlling the Display
 
 To show the most recently generated image (or the logo if none has been generated):
 
 *Show the image.*
 
+*Turn on the screen.*
+
+To return to the Lumina logo:
+
+*Show the logo.*
+
+*Go back to the home screen.*
+
 To blank the display:
 
 *Turn off the screen.*
 
-The display will also blank automatically after **10 minutes** of wake-word inactivity.
+The display will also blank automatically after **10 minutes** of wake-word inactivity outside of always-on hours.
+
+### Always-On Display Mode
+
+By default, the display stays on automatically between **8:00 AM and 9:00 PM**. You can control this feature by voice:
+
+*Turn on always-on mode.*
+
+*Turn off always-on mode.*
+
+If you manually blank the display during always-on hours (by asking Lumina to turn off the screen), that setting will be respected until the next always-on cycle begins.
 
 ### Exiting the Program
 
@@ -360,7 +428,7 @@ After=graphical.target
 User=pi
 WorkingDirectory=/home/pi/Lumina
 Environment=DISPLAY=:0
-ExecStart=/home/pi/Lumina/venv/bin/python /home/pi/Lumina/Lumina_Frame.py
+ExecStart=/home/pi/Lumina/venv/bin/python /home/pi/Lumina/Lumina_Frame8.py
 Restart=on-failure
 
 [Install]
@@ -381,16 +449,22 @@ Lumina Frame will now start automatically each time the Raspberry Pi boots.
 
 ## Configuration Reference
 
-The following constants near the top of `Lumina_Frame.py` can be adjusted to suit your setup:
+The following constants near the top of `Lumina_Frame8.py` can be adjusted to suit your setup:
 
 | Constant | Default | Description |
 |---|---|---|
 | `INACTIVITY_TIMEOUT` | `3` seconds | How long Lumina waits after silence before ending a session |
 | `SCREEN_BLANK_TIMEOUT` | `600` seconds | How long before the display blanks due to inactivity |
+| `ALWAYS_ON_ENABLED` | `True` | Whether the always-on display schedule is active at startup |
+| `ALWAYS_ON_START_HOUR` | `8` | Hour (24h) when always-on mode begins each day |
+| `ALWAYS_ON_END_HOUR` | `21` | Hour (24h) when always-on mode ends each day |
+| `USE_IP_LOCATION` | `True` | Whether to auto-detect your location via IP for weather queries |
+| `DEFAULT_WEATHER_Q` | `"Delray Beach,FL,US"` | Fallback weather query location (used if IP geolocation fails) |
+| `DEFAULT_LOCATION_DISPLAY` | `"Delray Beach, Florida"` | Fallback location display name |
 | `LOGO_PATH` | `/home/pi/Lumina/Lumina_Frame_Logo.png` | Path to the startup logo image |
 | `SAVE_PATH` | `/home/pi/Lumina/Saved_Images` | Directory where generated images are saved |
 
-The default weather location is **Delray Beach, Florida**. To change it, update the `lat`, `lon`, and `location_display` values in the `get_current_weather()` function.
+The default weather location is **Delray Beach, Florida**. If `USE_IP_LOCATION` is `True`, Lumina Frame will attempt to determine your location automatically from your device's public IP address at startup. If geolocation fails, it will fall back to the hardcoded `DEFAULT_WEATHER_Q` and `DEFAULT_LOCATION_DISPLAY` values.
 
 ---
 
@@ -398,7 +472,7 @@ The default weather location is **Delray Beach, Florida**. To change it, update 
 
 ```
 Lumina/
-├── Lumina_Frame.py          # Main program
+├── Lumina_Frame8.py         # Main program
 ├── requirements.txt         # Python dependencies
 ├── .env                     # Your API keys (never commit this)
 ├── .env.example             # Template showing required keys
@@ -421,11 +495,17 @@ Check that your USB speakerphone is recognized at card index 1 using `arecord -l
 **Image generation fails.**
 Verify your Google API key is valid and that you have access to the `gemini-3.1-flash-image-preview` model. Check your quota at https://aistudio.google.com/.
 
+**Weather queries fail or return errors.**
+Verify your OpenWeather API key is correctly entered in `.env`. New API keys can take a few minutes to activate after registration. Confirm your network connection is working.
+
 **The virtual environment is not found on startup.**
 If running as a service, confirm the `ExecStart` path in the systemd service file points to `/home/pi/Lumina/venv/bin/python`.
 
 **Speaker audio causes Lumina to interrupt itself.**
-The program includes a guarded mic mode that suppresses speaker bleed during AI speech. If self-interruption occurs, try increasing the `threshold` value in the `server_vad` section of the session configuration in `Lumina_Frame.py`.
+The program uses a guarded mic mode that suppresses speaker bleed during AI speech. If self-interruption occurs, try increasing the `threshold` value in the `server_vad` section of the session configuration in `Lumina_Frame8.py`.
+
+**Timers fire but Lumina doesn't announce them.**
+If no active session is open when a timer expires, the program will play a chime and display the timer name on screen instead. This is expected behavior.
 
 ---
 
