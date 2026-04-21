@@ -2,13 +2,15 @@
 
 import base64
 import datetime
+import difflib
 import io
 import json
 import math
 import numpy as np
 import os
+import random
 import pvporcupine
-import pvkoala
+
 import pyaudio
 import queue
 import sounddevice # this import suppresses abberant ALSA lib messages
@@ -44,32 +46,33 @@ LUMINA = ("""
     # Role & Identity
     - Your name is LooMa-Na.
     - You are a personable and helpful assistant.
-    - You are concise and efficient.
 
     # Demeanor
-    -Your demeanor should be welcoming, friendly, curious, and respectful.
-    -Your demeanor should not be syncophatic, condescending or sarcastic.
+    - Be welcoming, friendly, curious, and respectful.
+    - Be concise and efficient.
+    - Do not be syncophatic, condescending or sarcastic.
 
     # Tone and Voice Style
-    -Your tone and voice style should be authentic and polite.
-    -Your tone and voice style should not be pompous or preachy.
+
+    - Use a tone and voice style that is authentic and polite.
+    - Do not use a tone or voice style that is pompous or preachy.
 
     # Objectivity
 
-    -Your responses should be honest, factual, intelligent, clear and concise.
-    -Your responses should not be biased, repetitive, or ambiguous.
+    - Be honest, factual, intelligent, clear and concise.
+    - Do not be biased, repetitive, or ambiguous.
 
     # Enthusiasm Level
-    - You should be calm and measured.
-    - You should avoid rambling and excessive detail.
+    - Keep your entusiasm level calm and measured unless requested otherwise.
+    - Avoid rambling and excessive detail.
 
     # Filler Words
-    -You should occasionally use filler words such as "um," "uh," or "hm," to sound more natural.
-    -You should not start your response with 'sure', 'good question', 'great', 'absolutely', or any other obsequious statement.
-    -You should not end your response with a question unless necessary for clarification.
+    - Occasionally use filler words such as "um," "uh," or "hm," to sound more natural.
+    - Do not not start your response with 'sure', 'good question', 'great', 'absolutely', or any other obsequious statement.
+    - Do not end your response with a question unless necessary for clarification.
 
     # Appearance
-    -You have a visual display that shows a waveform that syncs to what you say.
+    - You have a visual display that shows a waveform that syncs to what you say.
 
     # Image Generation Capabilities
     - You can generate images when the user asks you to draw, paint, generate, create, or make
@@ -89,10 +92,54 @@ LUMINA = ("""
     - You can turn on the display to show the last generated image when the user asks to
       turn on the screen, show the image, display the picture, or light up the display.
       Call the show_screen tool. If no image exists, the logo will be shown.
+    - You can show the logo by calling the show_logo tool when the user asks to
+      show the logo, display the start screen, show the home screen, or similar.
     - You can turn off the display when the user asks to turn off the screen, blank the display,
       or shut off the monitor. Call the turn_off_display tool.
-      The screen will turn off after your conversation ends.
-      When the user asks to turn off the display, confirm that it will happen after you finish speaking.
+      The screen will turn off immediately. Your voice will still be audible.
+    - When the user asks to turn off the display, confirm that it is done.
+
+    # Always-On Display
+    - The display stays on automatically from 8:00 AM to 9:00 PM when always-on mode is enabled.
+    - If the user asks to turn off the display during these hours, it will stay off
+      until the next always-on cycle or until they ask to turn it back on.
+    - The user can enable or disable the always-on feature by asking you to
+      turn always-on mode on or off. Call the set_always_on tool with enabled
+      set to true or false accordingly.
+    - When toggling always-on mode, confirm the new state to the user.
+
+    # Listing Saved Images
+    - You can list the subjects of saved images when the user asks what images have been
+      saved, what pictures you have, or to tell them about saved images.
+      Call the list_saved_images tool.
+    - When reporting the results, describe the subjects naturally (e.g., "We have a sunset,
+      a cat playing piano, and a mountain landscape") rather than reading raw filenames.
+    - The tool returns a random sample of 3 or 4 subjects. After listing them, let the
+      user know how many total images are saved and ask if they'd like to hear more.
+
+    # Image Recall
+    - You can find and retrieve previously saved images when the user asks to
+      recall, find, or look up a saved picture, image, or painting.
+    - When the user asks to find a saved image, call the recall_image tool with
+      the key descriptive words from their request.
+    - If a match is found, the image will be displayed automatically. Briefly confirm
+      what image was found. Do not describe the image in excessive detail.
+    - If no match is found, let the user know that no saved image matched their
+      description, and suggest they try different words.
+    - Important: The recall_image tool is only for finding saved images by description.
+      It is not for turning the screen on or off. Use show_screen and turn_off_display
+      for screen control.
+
+    # Weather
+    - For current conditions, use get_current_weather. For tomorrow or a future day, use get_weather_forecast.
+    - If the user does not mention a specific location, call the weather tool immediately with
+      location=null — do NOT ask the user to confirm or name a location first.
+
+    # Timers
+    - You can set named countdown timers using the set_timer tool.
+    - You can cancel a running timer with cancel_timer and check remaining time with get_timer_status.
+    - When a timer finishes, you will be notified via a system message and should announce it to the user.
+    - If the user asks to set a timer without a specific name, use 'timer' as the label.
     """
 )
 
@@ -103,6 +150,13 @@ load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 PICOVOICE_ACCESS_KEY = os.environ["PICOVOICE_ACCESS_KEY"]
 GOOGLE_API_KEY = os.environ["GOOGLE_API_KEY"]
+OPENWEATHER_API_KEY = os.environ["OPENWEATHER_API_KEY"]
+
+# --- Default weather location (overwritten by IP geolocation at startup if USE_IP_LOCATION=True) ---
+
+DEFAULT_WEATHER_Q        = "Delray Beach,FL,US"
+DEFAULT_LOCATION_DISPLAY = "Delray Beach, Florida"
+USE_IP_LOCATION          = True
 
 # --- Initialize Google Gemini client ---
 
@@ -115,6 +169,38 @@ RATE = 24000
 FORMAT = pyaudio.paInt16
 INACTIVITY_TIMEOUT = 3   # Oracle times out after this many seconds of inactivity
 SCREEN_BLANK_TIMEOUT = 600  # Screen blanks after 10 minutes of no wake-word activity
+
+# --- Always-On Display Schedule ---
+
+ALWAYS_ON_ENABLED = True
+ALWAYS_ON_START_HOUR = 8    # 8:00 AM
+ALWAYS_ON_END_HOUR = 21     # 9:00 PM
+
+# --- ALSA Volume Helpers ---
+
+def _set_alsa_capture(gain_pct: int) -> bool:
+    """Set ALSA microphone capture volume. Typical range: 0–100."""
+    try:
+        result = subprocess.run(
+            ["amixer", "-c", "1", "-q", "sset", "Mic", f"{gain_pct}%"],
+            check=False, timeout=1
+        )
+        return result.returncode == 0
+    except Exception as e:
+        print(f"amixer error: {e}")
+        return False
+
+def _set_alsa_playback(vol_pct: int) -> bool:
+    """Set ALSA speaker playback volume."""
+    try:
+        result = subprocess.run(
+            ["amixer", "-c", "1", "-q", "sset", "PCM", f"{vol_pct}%"],
+            check=False, timeout=1
+        )
+        return result.returncode == 0
+    except Exception as e:
+        print(f"amixer error: {e}")
+        return False
 
 # --- Paths ---
 
@@ -144,7 +230,129 @@ def get_best_aspect_ratio(width, height):
     print(f"Screen {width}x{height} (ratio {screen_ratio:.4f}) -> best aspect ratio: {best}")
     return best
 
+# --- Chime (fallback when a timer fires after the session ends) ---
+
+# Shared PyAudio instance set by main() at startup so _play_chime can open
+# an output stream without spawning a separate process that would conflict
+# with the already-open Porcupine input stream.
+_pa_instance = None
+
+def _play_chime():
+    """Play a short 880 Hz beep three times (1-second apart) using PyAudio.
+    Used when a timer fires after the session ends."""
+    if _pa_instance is None:
+        print("Chime: PyAudio instance not available.")
+        return
+
+    sample_rate = RATE   # 24000 Hz — same rate the device already handles
+    freq = 880
+    duration = 0.8
+    num_samples = int(sample_rate * duration)
+    raw = bytearray()
+    for i in range(num_samples):
+        val = int(32767 * math.sin(2 * math.pi * freq * i / sample_rate))
+        fade = min(1.0, (num_samples - i) / (sample_rate * 0.1))
+        raw += struct.pack('<h', int(val * fade))
+    tone = bytes(raw)
+
+    for i in range(3):
+        if i > 0:
+            time.sleep(1.0)
+        try:
+            stream = _pa_instance.open(
+                format=FORMAT,
+                channels=1,
+                rate=sample_rate,
+                output=True,
+            )
+            stream.write(tone)
+            stream.stop_stream()
+            stream.close()
+        except Exception as e:
+            print(f"Chime error: {e}")
+            break
+
+# --- Persistent timer state (survives inactivity timeouts / session restarts) ---
+# Stored here at module level so a new Realtime session can see timers set in a previous one.
+
+_timers = {}              # label -> {"timer": threading.Timer, "start": float, "duration": float}
+_timers_lock = threading.Lock()
+
+# Reference to the currently active Realtime session.  _fire_timer uses this so it
+# always announces through whichever session is open at the moment the timer expires.
+_active_session = None
+_active_session_lock = threading.Lock()
+
+def _fire_timer(label):
+    """Called by threading.Timer when a countdown expires.
+    Announces through the currently active session (if any) or falls back to a chime and display."""
+    with _timers_lock:
+        _timers.pop(label, None)
+
+    with _active_session_lock:
+        session = _active_session
+
+    session_live = (
+        session is not None
+        and not session._stop_event.is_set()
+        and session.sock.ws is not None
+        and session.sock.ws.connected
+    )
+
+    if session_live:
+        print(f"Timer '{label}' fired — announcing via active session.")
+        if len(session.audio.audio_buffer) > 0:
+            session.audio.clear_buffer()
+            session.sock.send({"type": "response.cancel"})
+        session.sock.send({
+            "type": "conversation.item.create",
+            "item": {
+                "type": "message",
+                "role": "user",
+                "content": [{
+                    "type": "input_text",
+                    "text": f"[System: The '{label}' timer has finished. Please announce this to the user.]"
+                }]
+            }
+        })
+        session.sock.send({"type": "response.create"})
+    else:
+        print(f"Timer '{label}' fired — no active session, playing chime.")
+        threading.Thread(target=_play_chime, daemon=True).start()
+        if viz is not None:
+            viz.set_text("Timer Finished", f"The '{label}' timer has finished.")
+
+            def _revert_after_finish():
+                time.sleep(3)
+                if viz is None:
+                    return
+                with _timers_lock:
+                    any_timers = bool(_timers)
+                if viz.state == 'text':
+                    viz.state = 'countdown' if any_timers else (viz.pre_countdown_state or 'logo')
+
+            threading.Thread(target=_revert_after_finish, daemon=True).start()
+
 # --- Tool Helper and Functions ---
+
+def is_always_on_hours():
+    """Returns True if current time is within the always-on display window."""
+    if not ALWAYS_ON_ENABLED:
+        return False
+    now = datetime.datetime.now()
+    return ALWAYS_ON_START_HOUR <= now.hour < ALWAYS_ON_END_HOUR
+
+def set_always_on(enabled):
+    """Enable or disable the always-on display feature."""
+    global ALWAYS_ON_ENABLED
+    ALWAYS_ON_ENABLED = enabled
+    state = "enabled" if enabled else "disabled"
+    print(f"Always-on display mode {state}.")
+    return f"Always-on display mode has been {state}. " + (
+        f"The screen will stay on from {ALWAYS_ON_START_HOUR}:00 AM to {ALWAYS_ON_END_HOUR - 12}:00 PM."
+        if enabled else
+        "The screen will now follow the normal inactivity timeout."
+    )
 
 def blank_screen():
     os.system("xset dpms force off")
@@ -204,56 +412,258 @@ def get_current_time():
     return now.strftime("The current date and time is %A, %B %d, %Y at %I:%M %p.")
 
 def get_current_weather(location=None):
-    """Fetches current weather from Open-Meteo for the given location.
-    Defaults to Delray Beach, FL if no location is provided."""
+    """Fetches current weather from OpenWeather for the given location.
+    Defaults to the device's detected location if no location is provided."""
     if not location:
-        lat, lon = 26.4615, -80.0728
-        location_display = "Delray Beach, Florida"
+        q = DEFAULT_WEATHER_Q
+        location_display = DEFAULT_LOCATION_DISPLAY
     else:
-        try:
-            geocode_url = (
-                "https://geocoding-api.open-meteo.com/v1/search"
-                f"?name={urllib.parse.quote(location)}&count=1"
-            )
-            with urllib.request.urlopen(geocode_url, timeout=5) as resp:
-                geo_data = json.loads(resp.read().decode())
-
-            if not geo_data.get("results"):
-                return f"Sorry, I couldn't find a location called {location}."
-
-            result = geo_data["results"][0]
-            lat = result["latitude"]
-            lon = result["longitude"]
-            name = result.get("name", location)
-            admin1 = result.get("admin1", "")
-            country = result.get("country", "")
-            location_display = ", ".join(part for part in [name, admin1, country] if part)
-        except Exception:
-            return f"I wasn't able to look up the location {location}. Please try again."
+        q = location
+        location_display = None   # will be filled from the API response
 
     try:
-        weather_url = (
-            f"https://api.open-meteo.com/v1/forecast"
-            f"?latitude={lat}&longitude={lon}"
-            f"&current_weather=true"
-            f"&temperature_unit=fahrenheit"
-            f"&windspeed_unit=mph"
+        url = (
+            f"https://api.openweathermap.org/data/2.5/weather"
+            f"?q={urllib.parse.quote(q)}"
+            f"&units=imperial"
+            f"&appid={OPENWEATHER_API_KEY}"
         )
-        with urllib.request.urlopen(weather_url, timeout=5) as resp:
-            weather_data = json.loads(resp.read().decode())
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
 
-        cw = weather_data["current_weather"]
-        temp = cw["temperature"]
-        wind = cw["windspeed"]
-        condition = _wmo_code_to_description(cw.get("weathercode", 0))
+        if location_display is None:
+            city    = data.get("name", q)
+            country = data.get("sys", {}).get("country", "")
+            location_display = f"{city}, {country}" if country else city
+
+        temp      = round(data["main"]["temp"])
+        wind      = round(data["wind"]["speed"])
+        condition = data["weather"][0]["description"]
 
         return (
             f"The current weather in {location_display} is {condition}, "
             f"with a temperature of {temp} degrees Fahrenheit "
             f"and winds at {wind} miles per hour."
         )
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return f"Sorry, I couldn't find weather data for '{location or DEFAULT_LOCATION_DISPLAY}'."
+        return "I was unable to retrieve the weather right now. Please try again in a moment."
     except Exception:
         return "I was unable to retrieve the weather right now. Please try again in a moment."
+
+def _resolve_forecast_date(date_str):
+    """Resolve a date string to a datetime.date object.
+    Accepts: None/'tomorrow', a weekday name, or an ISO 'YYYY-MM-DD' string.
+    Returns (date, error_string).  error_string is None on success."""
+    today    = datetime.date.today()
+    tomorrow = today + datetime.timedelta(days=1)
+
+    if not date_str or date_str.strip().lower() == "tomorrow":
+        return tomorrow, None
+
+    ds = date_str.strip().lower()
+
+    # Weekday name resolution
+    weekdays = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"]
+    if ds in weekdays:
+        target_dow = weekdays.index(ds)
+        days_ahead = (target_dow - tomorrow.weekday()) % 7
+        target = tomorrow + datetime.timedelta(days=days_ahead)
+        return target, None
+
+    # ISO date string
+    try:
+        target = datetime.date.fromisoformat(date_str.strip())
+        return target, None
+    except ValueError:
+        pass
+
+    return None, f"I don't understand the date '{date_str}'. Try 'tomorrow', a weekday name, or a date like '2025-04-22'."
+
+def get_weather_forecast(location=None, date=None):
+    """Fetches a 5-day/3-hour weather forecast from OpenWeather for a specific day.
+    Defaults to the device's detected location and tomorrow if no arguments are provided."""
+    target_date, err = _resolve_forecast_date(date)
+    if err:
+        return err
+
+    today = datetime.date.today()
+    if target_date <= today:
+        return "I can only forecast future dates. For today's current conditions, ask for the current weather."
+    if (target_date - today).days > 5:
+        return "The forecast is only available up to 5 days ahead. Please ask about a closer date."
+
+    if not location:
+        q = DEFAULT_WEATHER_Q
+        location_display = DEFAULT_LOCATION_DISPLAY
+    else:
+        q = location
+        location_display = None
+
+    try:
+        url = (
+            f"https://api.openweathermap.org/data/2.5/forecast"
+            f"?q={urllib.parse.quote(q)}"
+            f"&units=imperial"
+            f"&appid={OPENWEATHER_API_KEY}"
+        )
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+
+        if location_display is None:
+            city    = data.get("city", {}).get("name", q)
+            country = data.get("city", {}).get("country", "")
+            location_display = f"{city}, {country}" if country else city
+
+        # Collect 3-hour slots that fall on the target date (in local time)
+        temps      = []
+        winds      = []
+        conditions = []
+        for entry in data.get("list", []):
+            slot_dt = datetime.datetime.fromtimestamp(entry["dt"])
+            if slot_dt.date() == target_date:
+                temps.append(entry["main"]["temp"])
+                winds.append(entry["wind"]["speed"])
+                conditions.append(entry["weather"][0]["description"])
+
+        date_label = target_date.strftime("%A, %B %d, %Y")
+
+        if not temps:
+            return (
+                f"No forecast data is available for {date_label} in {location_display}. "
+                f"This date may be at the edge of the 5-day forecast window."
+            )
+
+        # Aggregate: high/low temp, average wind, most frequent condition
+        high = round(max(temps))
+        low  = round(min(temps))
+        wind = round(sum(winds) / len(winds))
+        predominant_condition = max(set(conditions), key=conditions.count)
+
+        return (
+            f"The weather forecast for {location_display} on {date_label} is "
+            f"{predominant_condition}, with a high of {high} degrees Fahrenheit, "
+            f"a low of {low} degrees Fahrenheit, and average winds of {wind} miles per hour."
+        )
+
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return f"Sorry, I couldn't find forecast data for '{location or DEFAULT_LOCATION_DISPLAY}'."
+        return "I was unable to retrieve the forecast right now. Please try again in a moment."
+    except Exception:
+        return "I was unable to retrieve the forecast right now. Please try again in a moment."
+
+def _set_timer(label, duration_seconds):
+    """Create (or replace) a named countdown timer."""
+    try:
+        duration_seconds = int(duration_seconds)
+    except (TypeError, ValueError):
+        return "Invalid duration. Please provide a number of seconds."
+    if duration_seconds <= 0:
+        return "Duration must be greater than zero."
+
+    with _timers_lock:
+        # Cancel existing timer with the same label before replacing
+        if label in _timers:
+            _timers[label]["timer"].cancel()
+            print(f"Timer '{label}' replaced.")
+
+        t = threading.Timer(duration_seconds, _fire_timer, args=[label])
+        _timers[label] = {
+            "timer": t,
+            "start": time.time(),
+            "duration": float(duration_seconds),
+        }
+        t.start()
+
+    if viz is not None and viz.state not in ('countdown', 'visualizing'):
+        viz.pre_countdown_state = viz.state
+        viz.state = 'countdown'
+
+    # Build a human-readable duration string
+    mins, secs = divmod(duration_seconds, 60)
+    hrs, mins = divmod(mins, 60)
+    parts = []
+    if hrs:
+        parts.append(f"{hrs} hour{'s' if hrs != 1 else ''}")
+    if mins:
+        parts.append(f"{mins} minute{'s' if mins != 1 else ''}")
+    if secs:
+        parts.append(f"{secs} second{'s' if secs != 1 else ''}")
+    duration_str = " and ".join(parts) if parts else "0 seconds"
+
+    print(f"Timer '{label}' set for {duration_str}.")
+    return f"Timer '{label}' set for {duration_str}."
+
+def _cancel_timer(label):
+    """Cancel a running timer by label. If label is omitted and exactly one
+    timer is running, cancel that one without asking."""
+    with _timers_lock:
+        if not label:
+            if len(_timers) == 1:
+                label = next(iter(_timers))
+            elif len(_timers) == 0:
+                return "There are no timers currently running."
+            else:
+                names = ", ".join(f"'{n}'" for n in _timers)
+                return f"Multiple timers are running ({names}). Which one should I cancel?"
+        entry = _timers.pop(label, None)
+    if entry:
+        entry["timer"].cancel()
+        print(f"Timer '{label}' cancelled.")
+        return f"Timer '{label}' cancelled."
+    return f"No timer named '{label}' is currently running."
+
+def _get_timer_status(label):
+    """Return remaining time for one or all active timers."""
+    def _fmt_remaining(entry):
+        elapsed = time.time() - entry["start"]
+        remaining = max(0.0, entry["duration"] - elapsed)
+        mins, secs = divmod(int(remaining), 60)
+        hrs, mins = divmod(mins, 60)
+        parts = []
+        if hrs:
+            parts.append(f"{hrs} hour{'s' if hrs != 1 else ''}")
+        if mins:
+            parts.append(f"{mins} minute{'s' if mins != 1 else ''}")
+        if secs or not parts:
+            parts.append(f"{secs} second{'s' if secs != 1 else ''}")
+        return " and ".join(parts)
+
+    with _timers_lock:
+        snapshot = dict(_timers)
+
+    if label:
+        if label not in snapshot:
+            return f"No timer named '{label}' is currently running."
+        return f"{_fmt_remaining(snapshot[label])} remaining on the '{label}' timer."
+
+    if not snapshot:
+        return "No timers are currently running."
+    lines = [f"'{lbl}': {_fmt_remaining(entry)} remaining"
+             for lbl, entry in snapshot.items()]
+    return "Active timers — " + "; ".join(lines) + "."
+
+def _get_ip_location():
+    """Fetch city/region from the device's public IP via ip-api.com.
+    Returns (q_string, display_string) on success, or None on failure."""
+    try:
+        url = "http://ip-api.com/json"
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+        if data.get("status") == "success":
+            city         = data.get("city", "")
+            region       = data.get("regionName", "")
+            country_code = data.get("countryCode", "")
+            country      = data.get("country", "")
+            if city:
+                q       = f"{city},{country_code}" if country_code else city
+                display = ", ".join(p for p in [city, region, country] if p)
+                return q, display
+    except Exception as e:
+        print(f"IP geolocation error: {e}")
+    return None
 
 def save_generated_image(pil_image, prompt_label="image"):
     """Saves a PIL Image to disk. Returns the filename on success or error string."""
@@ -264,7 +674,7 @@ def save_generated_image(pil_image, prompt_label="image"):
 
     timestamp = datetime.datetime.now().strftime("%m-%d-%Y_%H-%M-%S")
     sanitized_label = prompt_label.replace(" ", "_")[:50]
-    output_filename = f"{SAVE_PATH}{sanitized_label}_{timestamp}.png"
+    output_filename = os.path.join(SAVE_PATH, f"{sanitized_label}_{timestamp}.png")
 
     try:
         pil_image.save(output_filename, format="PNG")
@@ -275,42 +685,84 @@ def save_generated_image(pil_image, prompt_label="image"):
         print(error_msg)
         return error_msg
 
+def list_saved_images():
+    """Returns a list of saved image subjects extracted from filenames."""
+    if not os.path.isdir(SAVE_PATH):
+        return []
+
+    png_files = [f for f in os.listdir(SAVE_PATH) if f.lower().endswith(".png")]
+    if not png_files:
+        return []
+
+    subjects = []
+    for fname in png_files:
+        base = fname[:-4]  # remove .png
+        # Timestamp suffix is _MM-DD-YYYY_HH-MM-SS (20 chars including leading _)
+        if len(base) > 20 and base[-20] == '_':
+            label_part = base[:-20]
+        else:
+            label_part = base
+        subject = label_part.replace("_", " ").strip()
+        if subject:
+            subjects.append(subject)
+
+    return subjects
+
+def find_saved_image(description):
+    """Searches saved images by fuzzy-matching description against filenames.
+    Returns (filepath, label, score) for best match, or (None, None, 0)."""
+    if not os.path.isdir(SAVE_PATH):
+        return None, None, 0
+
+    png_files = [f for f in os.listdir(SAVE_PATH) if f.lower().endswith(".png")]
+    if not png_files:
+        return None, None, 0
+
+    desc_lower = description.lower().strip()
+    desc_words = set(desc_lower.split())
+
+    best_path = None
+    best_label = None
+    best_score = 0
+
+    for fname in png_files:
+        base = fname[:-4]  # remove .png
+        # Timestamp suffix is _MM-DD-YYYY_HH-MM-SS (20 chars including leading _)
+        if len(base) > 20 and base[-20] == '_':
+            label_part = base[:-20]
+        else:
+            label_part = base
+
+        label_readable = label_part.replace("_", " ").lower().strip()
+        label_words = set(label_readable.split())
+
+        seq_ratio = difflib.SequenceMatcher(None, desc_lower, label_readable).ratio()
+
+        if desc_words:
+            word_overlap = len(desc_words & label_words) / len(desc_words)
+        else:
+            word_overlap = 0
+
+        combined = 0.5 * seq_ratio + 0.5 * word_overlap
+        if combined > best_score:
+            best_score = combined
+            best_path = os.path.join(SAVE_PATH, fname)
+            best_label = label_part.replace("_", " ")
+
+    THRESHOLD = 0.35
+    if best_score >= THRESHOLD:
+        return best_path, best_label, best_score
+    return None, None, 0
+
 def wake_screen():
     os.system("xset dpms force on")
-
-def _wmo_code_to_description(code):
-    """Converts a WMO weather interpretation code to a plain English description."""
-    WMO_CODES = {
-        0:  "clear sky",
-        1:  "mainly clear",
-        2:  "partly cloudy",
-        3:  "overcast",
-        45: "foggy",
-        48: "icy fog",
-        51: "light drizzle",
-        53: "moderate drizzle",
-        55: "heavy drizzle",
-        61: "light rain",
-        63: "moderate rain",
-        65: "heavy rain",
-        71: "light snow",
-        73: "moderate snow",
-        75: "heavy snow",
-        77: "snow grains",
-        80: "light showers",
-        81: "moderate showers",
-        82: "heavy showers",
-        85: "snow showers",
-        86: "heavy snow showers",
-        95: "thunderstorms",
-        96: "thunderstorms with hail",
-        99: "thunderstorms with heavy hail",
-    }
-    return WMO_CODES.get(code, "mixed conditions")
 
 # --------------------------------------------------------------------------------
 # Visualizer Class
 # --------------------------------------------------------------------------------
+
+# Module-level reference to the Visualizer singleton, used by _fire_timer.
+viz = None
 
 class Visualizer:
     def __init__(self):
@@ -336,6 +788,8 @@ class Visualizer:
 
         self.font = pygame.font.Font(None, 74)
         self.text_font = pygame.font.SysFont("Arial Black", 36)
+        self.countdown_font = pygame.font.SysFont("Arial Black", 120)
+        self.countdown_label_font = pygame.font.SysFont("Arial Black", 48)
 
         self.audio_data = np.zeros(CHUNK_SIZE, dtype=np.float32)
         self.data_lock = threading.Lock()
@@ -360,6 +814,9 @@ class Visualizer:
         # Text display
         self.display_text_line1 = ""
         self.display_text_line2 = ""
+
+        # Countdown state: remembers the state to restore when the last timer ends
+        self.pre_countdown_state = 'logo'
 
     def load_logo(self):
         """Load and scale the logo image for pygame display."""
@@ -454,6 +911,32 @@ class Visualizer:
                 rect = text_surface.get_rect(center=(self.WIDTH // 2, y_start + i * 50))
                 self.screen.blit(text_surface, rect)
 
+    def display_countdown(self):
+        """Render all active timers as label + MM:SS (or HH:MM:SS), stacked vertically."""
+        self.screen.fill(self.BACKGROUND)
+        with _timers_lock:
+            snapshot = list(_timers.items())
+        if not snapshot:
+            return
+        now = time.time()
+        rows = []
+        for label, entry in snapshot:
+            remaining = max(0, int(entry["duration"] - (now - entry["start"])))
+            hrs, rem = divmod(remaining, 3600)
+            mins, secs = divmod(rem, 60)
+            time_str = f"{hrs:d}:{mins:02d}:{secs:02d}" if hrs else f"{mins:02d}:{secs:02d}"
+            rows.append((label, time_str))
+
+        row_height = 200
+        total_height = len(rows) * row_height
+        start_y = self.HEIGHT // 2 - total_height // 2 + row_height // 2
+        for i, (label, time_str) in enumerate(rows):
+            cy = start_y + i * row_height
+            label_surf = self.countdown_label_font.render(label, True, self.TEXT_COLOR)
+            time_surf = self.countdown_font.render(time_str, True, self.WAVEFORM_COLOR)
+            self.screen.blit(label_surf, label_surf.get_rect(center=(self.WIDTH // 2, cy - 50)))
+            self.screen.blit(time_surf, time_surf.get_rect(center=(self.WIDTH // 2, cy + 40)))
+
     def update_data(self, audio_bytes):
         samples = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32) / 32768.0
         with self.data_lock:
@@ -537,6 +1020,15 @@ class Visualizer:
                 self.display_image()
                 pygame.display.flip()
                 clock.tick(10)
+            elif self.state == 'countdown':
+                with _timers_lock:
+                    any_timers = bool(_timers)
+                if not any_timers:
+                    self.state = self.pre_countdown_state or 'logo'
+                    continue
+                self.display_countdown()
+                pygame.display.flip()
+                clock.tick(4)
             else:
                 self.clear_to_black()
                 pygame.display.flip()
@@ -602,7 +1094,7 @@ class Socket:
 # --------------------------------------------------------------------------------
 
 class AudioIO:
-    def __init__(self, p_instance, visualizer_instance, porcupine, koala):
+    def __init__(self, p_instance, visualizer_instance, porcupine):
         self.audio_buffer = bytearray()
         self.mic_queue = queue.Queue()
         self._stop_event = threading.Event()
@@ -611,12 +1103,10 @@ class AudioIO:
 
         # Two-mode mic architecture
         self.porcupine = porcupine
-        self.koala = koala
         self.mode = 'active'           # 'guarded' or 'active'
         self.mode_lock = threading.Lock()
 
-        # Resampling and frame accumulation buffers for guarded mode
-        self._resample_buf_16k = np.array([], dtype=np.int16)
+        # Frame accumulation buffer for guarded mode
         self._porcupine_buf = np.array([], dtype=np.int16)
 
         # Callbacks for wake-word and exit-word detection during session
@@ -649,10 +1139,7 @@ class AudioIO:
             self.mode = mode
 
         if mode == 'guarded' and old_mode == 'active':
-            # Transitioning to guarded: reset Koala state (non-contiguous audio)
-            # and clear resampling buffers
-            self.koala.reset()
-            self._resample_buf_16k = np.array([], dtype=np.int16)
+            # Transitioning to guarded: clear accumulation buffer
             self._porcupine_buf = np.array([], dtype=np.int16)
             print(f"Audio mode: {old_mode} -> {mode}")
 
@@ -667,8 +1154,8 @@ class AudioIO:
             print(f"Audio mode: {old_mode} -> {mode}")
 
     def _process_guarded_audio(self, raw_24k_bytes):
-        """Resample 24kHz mic audio to 16kHz, run Koala noise suppression,
-        then feed enhanced audio to Porcupine for wake-word detection."""
+        """Resample 24kHz mic audio to 16kHz, then feed to Porcupine
+        for wake-word detection."""
         # Convert bytes to numpy int16 array
         samples_24k = np.frombuffer(raw_24k_bytes, dtype=np.int16)
 
@@ -682,25 +1169,9 @@ class AudioIO:
         ).astype(np.int16)
 
         # Accumulate resampled audio
-        self._resample_buf_16k = np.concatenate([self._resample_buf_16k, samples_16k])
+        self._porcupine_buf = np.concatenate([self._porcupine_buf, samples_16k])
 
-        # Process in Koala-sized frames, then feed results to Porcupine
-        koala_fl = self.koala.frame_length
-
-        while len(self._resample_buf_16k) >= koala_fl:
-            koala_frame = self._resample_buf_16k[:koala_fl]
-            self._resample_buf_16k = self._resample_buf_16k[koala_fl:]
-
-            # Run noise suppression to remove speaker bleed
-            enhanced = self.koala.process(koala_frame.tolist())
-
-            # Accumulate enhanced audio for Porcupine
-            self._porcupine_buf = np.concatenate([
-                self._porcupine_buf,
-                np.array(enhanced, dtype=np.int16)
-            ])
-
-        # Drain Porcupine-sized frames from the enhanced buffer
+        # Drain Porcupine-sized frames from the buffer
         porc_fl = self.porcupine.frame_length
 
         while len(self._porcupine_buf) >= porc_fl:
@@ -765,9 +1236,9 @@ class AudioIO:
 # --------------------------------------------------------------------------------
 
 class Realtime:
-    def __init__(self, api_key, ws_url, p_instance, visualizer_instance, porcupine, koala):
+    def __init__(self, api_key, ws_url, p_instance, visualizer_instance, porcupine):
         self.sock = Socket(api_key, ws_url)
-        self.audio = AudioIO(p_instance, visualizer_instance, porcupine, koala)
+        self.audio = AudioIO(p_instance, visualizer_instance, porcupine)
         self.sent_update = False
         self._stop_event = threading.Event()
         self.user_speaking = False
@@ -781,6 +1252,7 @@ class Realtime:
         self.screen_off_requested = False
 
     def start(self):
+        global _active_session
         self.sock.on_msg = self.on_msg
         self.sock.connect()
         self.audio.on_wake_word = self._handle_wake_word_interrupt
@@ -788,6 +1260,8 @@ class Realtime:
         self.audio.set_mode('active')  # User just said "Lumina", expect speech
         self.audio.start_streams()
         threading.Thread(target=self.audio.send_mic, args=(self.sock,), daemon=True).start()
+        with _active_session_lock:
+            _active_session = self
 
     def _handle_wake_word_interrupt(self):
         """Called when wake word is detected during an active session (guarded mode)."""
@@ -852,8 +1326,10 @@ class Realtime:
                             "type": "function",
                             "name": "get_current_weather",
                             "description": (
-                                "Gets the current weather conditions for a location. "
-                                "Defaults to Delray Beach, Florida if no location is provided."
+                                "Gets the current weather conditions for a location using the OpenWeather API. "
+                                "Use this for present conditions only — use get_weather_forecast for future days. "
+                                "If the user did not mention a specific location, call this tool immediately "
+                                "with location=null — do NOT ask the user to confirm or name a location first."
                             ),
                             "parameters": {
                                 "type": "object",
@@ -862,11 +1338,46 @@ class Realtime:
                                         "type": ["string", "null"],
                                         "description": (
                                             "The city or location name to get weather for. "
-                                            "Pass null to use the default location of Delray Beach, Florida."
+                                            f"Pass null to automatically use the default ({DEFAULT_LOCATION_DISPLAY}) "
+                                            "without asking the user for confirmation."
                                         )
                                     }
                                 },
                                 "required": ["location"],
+                                "additionalProperties": False
+                            }
+                        },
+                        {
+                            "type": "function",
+                            "name": "get_weather_forecast",
+                            "description": (
+                                "Returns a weather forecast for a specific future day "
+                                "using the OpenWeather API. Supports up to 5 days ahead. "
+                                "Use this for any question about tomorrow's weather or a future day. "
+                                "If the user did not mention a specific location, call this tool immediately "
+                                "with location=null — do NOT ask the user to confirm or name a location first."
+                            ),
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "location": {
+                                        "type": ["string", "null"],
+                                        "description": (
+                                            "The city or location name to get the forecast for. "
+                                            f"Pass null to automatically use the default ({DEFAULT_LOCATION_DISPLAY}) "
+                                            "without asking the user for confirmation."
+                                        )
+                                    },
+                                    "date": {
+                                        "type": ["string", "null"],
+                                        "description": (
+                                            "The day to forecast. Accepts: 'tomorrow', a weekday name "
+                                            "('Monday'…'Sunday'), or an ISO date string 'YYYY-MM-DD'. "
+                                            "Pass null to default to tomorrow."
+                                        )
+                                    }
+                                },
+                                "required": ["location", "date"],
                                 "additionalProperties": False
                             }
                         },
@@ -929,15 +1440,168 @@ class Realtime:
                             "type": "function",
                             "name": "turn_off_display",
                             "description": (
-                                "Turns off the display after the current conversation ends. "
+                                "Turns off the display immediately. "
                                 "Call this when the user asks to turn off the screen, blank the display, "
-                                "or shut off the monitor. The screen will remain on during the conversation "
-                                "but will turn off once the session ends."
+                                "or shut off the monitor. The screen will go dark right away "
+                                "but your voice will still be audible."
                             ),
                             "parameters": {
                                 "type": "object",
                                 "properties": {},
                                 "required": [],
+                                "additionalProperties": False
+                            }
+                        },
+                        {
+                            "type": "function",
+                            "name": "recall_image",
+                            "description": (
+                                "Searches for a previously saved image by matching the user's "
+                                "description against saved image filenames. Call this ONLY when "
+                                "the user asks to find, recall, or look up a previously saved "
+                                "picture, image, or painting — for example 'find the picture of "
+                                "the sunset' or 'recall the painting of a cat'. "
+                                "Do NOT use this tool for screen control requests like turning "
+                                "the display on or off. Pass the key descriptive words from "
+                                "the user's request as the description."
+                            ),
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "description": {
+                                        "type": "string",
+                                        "description": (
+                                            "The descriptive terms to search for. Extract the subject "
+                                            "from the user's request (e.g., if user says 'show me the "
+                                            "painting of a cat', pass 'cat' or 'painting of a cat')."
+                                        )
+                                    }
+                                },
+                                "required": ["description"],
+                                "additionalProperties": False
+                            }
+                        },
+                        {
+                            "type": "function",
+                            "name": "set_always_on",
+                            "description": (
+                                "Enables or disables the always-on display mode. "
+                                "When enabled, the screen stays on from 8 AM to 9 PM. "
+                                "When disabled, the screen follows the normal inactivity timeout. "
+                                "Call this when the user asks to turn always-on mode on or off, "
+                                "enable or disable the always-on display, or keep the screen on all day."
+                            ),
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "enabled": {
+                                        "type": "boolean",
+                                        "description": (
+                                            "Set to true to enable always-on mode, "
+                                            "false to disable it."
+                                        )
+                                    }
+                                },
+                                "required": ["enabled"],
+                                "additionalProperties": False
+                            }
+                        },
+                        {
+                            "type": "function",
+                            "name": "list_saved_images",
+                            "description": (
+                                "Returns a list of subjects from previously saved images. "
+                                "Call this when the user asks what images have been saved, "
+                                "what pictures are available, or wants to know about their "
+                                "saved image collection."
+                            ),
+                            "parameters": {
+                                "type": "object",
+                                "properties": {},
+                                "required": [],
+                                "additionalProperties": False
+                            }
+                        },
+                        {
+                            "type": "function",
+                            "name": "show_logo",
+                            "description": (
+                                "Displays the Lumina logo on the screen. "
+                                "Call this when the user asks to show the logo, "
+                                "display the start screen, show the home screen, "
+                                "or go back to the default display."
+                            ),
+                            "parameters": {
+                                "type": "object",
+                                "properties": {},
+                                "required": [],
+                                "additionalProperties": False
+                            }
+                        },
+                        {
+                            "type": "function",
+                            "name": "set_timer",
+                            "description": (
+                                "Sets a named countdown timer. If a timer with the same label is "
+                                "already running it is cancelled and replaced with the new one."
+                            ),
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "label": {
+                                        "type": "string",
+                                        "description": (
+                                            "A short name for the timer, e.g. 'pasta', 'sauce', or 'timer'. "
+                                            "Used to identify it when querying or cancelling."
+                                        )
+                                    },
+                                    "duration_seconds": {
+                                        "type": "integer",
+                                        "description": "How many seconds to count down."
+                                    }
+                                },
+                                "required": ["label", "duration_seconds"],
+                                "additionalProperties": False
+                            }
+                        },
+                        {
+                            "type": "function",
+                            "name": "cancel_timer",
+                            "description": (
+                                "Cancels a running timer. If exactly one timer is active, "
+                                "call this with no label to cancel it without asking. "
+                                "Only ask the user which timer to cancel when two or more are active."
+                            ),
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "label": {
+                                        "type": "string",
+                                        "description": "The label of the timer to cancel. Omit to auto-cancel when only one timer is running."
+                                    }
+                                },
+                                "required": [],
+                                "additionalProperties": False
+                            }
+                        },
+                        {
+                            "type": "function",
+                            "name": "get_timer_status",
+                            "description": (
+                                "Returns the time remaining on a specific timer or on all active timers."
+                            ),
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "label": {
+                                        "type": ["string", "null"],
+                                        "description": (
+                                            "The label of the timer to check, or null to return "
+                                            "the status of all active timers."
+                                        )
+                                    }
+                                },
+                                "required": ["label"],
                                 "additionalProperties": False
                             }
                         }
@@ -990,6 +1654,7 @@ class Realtime:
             # Clear any stale audio in OpenAI's input buffer to prevent
             # residual audio from triggering speech detection
             self.sock.send({"type": "input_audio_buffer.clear"})
+            threading.Thread(target=_set_alsa_capture, args=(30,), daemon=True).start()
 
         elif typ == "response.done":
             response_obj = msg.get("response", {})
@@ -1012,10 +1677,12 @@ class Realtime:
                 # The main loop will switch to active once the buffer is empty.
                 self.ai_responding = False
                 self.pending_active_switch = True
+                threading.Thread(target=_set_alsa_capture, args=(38,), daemon=True).start()
             elif status == "cancelled":
                 # Response was cancelled (by wake word interrupt)
                 # Stay in active mode - user is about to speak
                 self.ai_responding = False
+                threading.Thread(target=_set_alsa_capture, args=(38,), daemon=True).start()
             else:
                 # Tool call in progress or other status - stay in current mode
                 self.ai_responding = False
@@ -1056,6 +1723,18 @@ class Realtime:
 
             elif func_name == "get_current_weather":
                 output = get_current_weather(args.get("location", None))
+
+            elif func_name == "get_weather_forecast":
+                output = get_weather_forecast(args.get("location"), args.get("date"))
+
+            elif func_name == "set_timer":
+                output = _set_timer(args.get("label", "timer"), args.get("duration_seconds"))
+
+            elif func_name == "cancel_timer":
+                output = _cancel_timer(args.get("label"))
+
+            elif func_name == "get_timer_status":
+                output = _get_timer_status(args.get("label"))
 
             elif func_name == "generate_image":
                 prompt = args.get("prompt", "")
@@ -1119,10 +1798,62 @@ class Realtime:
 
             elif func_name == "turn_off_display":
                 self.screen_off_requested = True
+                self.visualizer.state = 'blanked'
+                time.sleep(0.1)
+                blank_screen()
                 output = (
-                    "The display will turn off when the conversation ends. "
-                    "Let the user know the screen will go dark after you finish speaking."
+                    "The display has been turned off. "
+                    "Confirm to the user that the screen is now off."
                 )
+
+            elif func_name == "recall_image":
+                description = args.get("description", "")
+                if not description:
+                    output = "No description provided. Ask the user what image they are looking for."
+                else:
+                    self.visualizer.set_text("Searching saved images...", description)
+                    filepath, label, score = find_saved_image(description)
+                    if filepath and os.path.isfile(filepath):
+                        try:
+                            pil_image = Image.open(filepath)
+                            self.visualizer.set_image(pil_image, label)
+                            self.new_image_this_session = True
+                            output = (
+                                f"Found a saved image matching '{description}': "
+                                f"'{label}' (confidence: {score:.0%}). "
+                                "The image is now displayed on the screen."
+                            )
+                        except Exception as e:
+                            output = f"Found a matching file but failed to open it: {e}"
+                    else:
+                        output = (
+                            f"No saved image was found matching '{description}'. "
+                            "Let the user know and suggest they try different descriptive words."
+                        )
+
+            elif func_name == "set_always_on":
+                enabled = args.get("enabled", True)
+                output = set_always_on(enabled)
+
+            elif func_name == "list_saved_images":
+                subjects = list_saved_images()
+                if subjects:
+                    sample_size = min(random.randint(3, 4), len(subjects))
+                    sample = random.sample(subjects, sample_size)
+                    sample_list = ", ".join(sample)
+                    output = (
+                        f"There are {len(subjects)} saved images in total. "
+                        f"Here are a few: {sample_list}. "
+                        "Describe these naturally to the user and ask if they "
+                        "would like to hear more."
+                    )
+                else:
+                    output = "There are no saved images yet."
+
+            elif func_name == "show_logo":
+                self.screen_on_requested = True
+                self.visualizer.state = 'logo'
+                output = "The Lumina logo is now displayed on the screen."
 
             else:
                 output = f"Unknown function: {func_name}"
@@ -1143,24 +1874,32 @@ class Realtime:
         self.sock.send({"type": "response.create"})
 
     def stop(self):
+        global _active_session
         self._stop_event.set()
         self.audio.stop_streams()
         self.sock.close()
+        with _active_session_lock:
+            if _active_session is self:
+                _active_session = None
         print("Realtime session stopped.")
         print("\nListening for wake word...")
 
 def main():
+    global viz
     url = "wss://api.openai.com/v1/realtime?model=gpt-realtime-1.5"
     visualizer, porcupine, pa = None, None, None
-    koala = None
     audio_stream = None
-    
-    # --- Adust Microphone Gain in ALSA Mixer ---
 
-    subprocess.run(["amixer", "-c", "1", "set", "Mic", "52%"]) 
+    # --- Set ALSA Mixer Levels ---
+    # Run 'amixer scontrols' to verify control names for your speakerphone.
+    playback_ok = _set_alsa_playback(80)
+    capture_ok = _set_alsa_capture(35)
+    print(f"ALSA playback (PCM 80%): {'OK' if playback_ok else 'FAILED'}")
+    print(f"ALSA capture  (Mic 35%): {'OK' if capture_ok else 'FAILED'}")
 
     try:
         visualizer = Visualizer()
+        viz = visualizer
         viz_thread = threading.Thread(target=visualizer.run, daemon=True)
         viz_thread.start()
         time.sleep(0.5)
@@ -1168,11 +1907,24 @@ def main():
         # Initialize Porcupine (Wake Word)
         porcupine = pvporcupine.create(
             access_key=PICOVOICE_ACCESS_KEY,
-            keywords=['Lumina', 'exit-the-program'],
-            sensitivities=[0.2, 0.3]
+            keywords=['Hey-Lumina', 'exit-the-program'],
+            sensitivities=[0.3, 0.3]
         )
 
         pa = pyaudio.PyAudio()
+
+        global _pa_instance
+        _pa_instance = pa
+
+        # Optionally resolve the default weather location from the device's public IP.
+        if USE_IP_LOCATION:
+            global DEFAULT_WEATHER_Q, DEFAULT_LOCATION_DISPLAY
+            result = _get_ip_location()
+            if result:
+                DEFAULT_WEATHER_Q, DEFAULT_LOCATION_DISPLAY = result
+                print(f"IP geolocation: default location set to '{DEFAULT_LOCATION_DISPLAY}'.")
+            else:
+                print("IP geolocation failed — keeping hardcoded default location.")
 
         audio_stream = pa.open(
             rate=porcupine.sample_rate,
@@ -1188,16 +1940,43 @@ def main():
 
         last_interaction_time = time.time()
         screen_blanked = False
+        user_override_off = False
 
         while True:
             try:
 
-                # Check if screen should be blanked due to inactivity
-                if not screen_blanked and time.time() - last_interaction_time > SCREEN_BLANK_TIMEOUT:
-                    blank_screen()
-                    screen_blanked = True
-                    visualizer.state = 'blanked'
-                    print("Screen blanked due to inactivity.")
+                # --- Always-on display / screen-blanking logic ---
+                in_always_on = is_always_on_hours()
+
+                if in_always_on and not user_override_off:
+                    # During always-on hours: keep screen on
+                    if screen_blanked:
+                        wake_screen()
+                        screen_blanked = False
+                        if visualizer.last_image_surface is not None:
+                            visualizer.current_image_surface = visualizer.last_image_surface
+                            visualizer.state = 'image'
+                        else:
+                            visualizer.state = 'logo'
+                        print("Screen woken by always-on schedule.")
+                    last_interaction_time = time.time()  # prevent timeout
+                elif not in_always_on:
+                    # Outside always-on hours: normal timeout behavior
+                    user_override_off = False  # reset override for next cycle
+                    if not screen_blanked and time.time() - last_interaction_time > SCREEN_BLANK_TIMEOUT:
+                        visualizer.state = 'blanked'
+                        time.sleep(0.05)
+                        blank_screen()
+                        screen_blanked = True
+                        print("Screen blanked due to inactivity.")
+                else:
+                    # in_always_on and user_override_off: respect user's wish
+                    if not screen_blanked and time.time() - last_interaction_time > SCREEN_BLANK_TIMEOUT:
+                        visualizer.state = 'blanked'
+                        time.sleep(0.05)
+                        blank_screen()
+                        screen_blanked = True
+                        print("Screen blanked (user override during always-on hours).")
 
                 pcm = audio_stream.read(porcupine.frame_length, exception_on_overflow=False)
 
@@ -1231,12 +2010,8 @@ def main():
                         audio_stream.stop_stream()
                         audio_stream.close()
 
-                    # Create Koala for noise suppression during this session only
-                    koala = pvkoala.create(access_key=PICOVOICE_ACCESS_KEY)
-                    print(f"Koala initialized (sample_rate={koala.sample_rate}, frame_length={koala.frame_length})")
-
-                    # Start the Realtime Session with Porcupine and Koala
-                    rt_session = Realtime(OPENAI_API_KEY, url, pa, visualizer, porcupine, koala)
+                    # Start the Realtime Session with Porcupine
+                    rt_session = Realtime(OPENAI_API_KEY, url, pa, visualizer, porcupine)
 
                     try:
                         rt_session.start()
@@ -1269,8 +2044,6 @@ def main():
                                 rt_session.stop()
                                 if visualizer is not None:
                                     visualizer.stop()
-                                if koala is not None:
-                                    koala.delete()
                                 if porcupine is not None:
                                     porcupine.delete()
                                 if pa is not None:
@@ -1294,20 +2067,17 @@ def main():
 
                         rt_session.stop()
 
-                        # Release Koala to stop billing
-                        if koala is not None:
-                            koala.delete()
-                            koala = None
-                            print("Koala released.")
-
                         # --- Post-session screen behavior (priority order) ---
                         if screen_off:
                             # User asked to turn off the display
                             print("Screen off requested. Blanking screen.")
+                            visualizer.state = 'blanked'
+                            time.sleep(0.05)
                             blank_screen()
                             screen_blanked = True
-                            visualizer.state = 'blanked'
+                            user_override_off = True
                         elif new_image or screen_on:
+                            user_override_off = False
                             # New image generated OR user asked to show screen
                             print("Showing image/logo, restarting blank timer.")
                             if visualizer.last_image_surface is not None:
@@ -1319,9 +2089,10 @@ def main():
                         elif was_blanked_at_wake:
                             # Woke from blank, no new image or screen commands
                             print("Was blanked at wake with no new image. Re-blanking.")
+                            visualizer.state = 'blanked'
+                            time.sleep(0.05)
                             blank_screen()
                             screen_blanked = True
-                            visualizer.state = 'blanked'
                         else:
                             # Default: screen was on, no special commands
                             if visualizer.last_image_surface is not None:
@@ -1330,6 +2101,13 @@ def main():
                             else:
                                 visualizer.state = 'logo'
                             last_interaction_time = time.time()
+
+                        # If any timers are active, show the countdown (unless screen is blanked)
+                        with _timers_lock:
+                            timers_active = bool(_timers)
+                        if timers_active and visualizer.state != 'blanked':
+                            visualizer.pre_countdown_state = visualizer.state
+                            visualizer.state = 'countdown'
 
                         # Re-open the wake-word stream for the next loop
                         audio_stream = pa.open(
@@ -1360,8 +2138,6 @@ def main():
             audio_stream.close()
         if pa is not None:
             pa.terminate()
-        if koala is not None:
-            koala.delete()
         if porcupine is not None:
             porcupine.delete()
         if visualizer is not None:
@@ -1370,3 +2146,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
