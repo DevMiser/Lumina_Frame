@@ -7,12 +7,12 @@
 google-api-core
 google-genai
 numpy
+openai
 pillow
 pvporcupine
 pyaudio
 pygame
 python-dotenv
-python-websocket-client
 scipy
 sounddevice
 websocket-client
