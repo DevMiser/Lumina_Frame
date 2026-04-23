@@ -118,6 +118,7 @@ Scroll to the very end of the file and add the following line:
 
 ```
 dtoverlay=vc4-kms-dsi-waveshare-panel,8_0_inch
+dtoverlay=WS_xinchDSI_Touch,invertedy,swappedxy
 ```
 
 Press **Ctrl + X**, then **Y**, then **Enter** to save. Then reboot:
