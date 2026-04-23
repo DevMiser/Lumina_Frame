@@ -131,7 +131,7 @@ After rebooting, the Waveshare display should be active. If the display remains 
 
 > **Note:** If you later run `sudo apt full-upgrade` and the display stops working, re-open `/boot/firmware/config.txt` and verify the `dtoverlay` line is still present. A system upgrade can occasionally overwrite kernel overlay files, and re-saving the config line and rebooting is all that is needed to restore normal operation.
 
-Now chnge the rotation of your display by following the directions under "Bullseye/Buster Display Rotation on the display's wiki page here: https://www.waveshare.com/wiki/8inch_DSI_LCD_(C)
+Now change the rotation of your display by following the directions under "Bullseye/Buster Display Rotation on the display's wiki page here: https://www.waveshare.com/wiki/8inch_DSI_LCD_(C)
 
 ### 3. Install System-Level Dependencies
 
@@ -181,7 +181,7 @@ Your terminal prompt will change to show `(venv)` at the beginning, confirming t
 With the virtual environment active, install all required packages:
 
 ```
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 ```
 
 This may take several minutes on a Raspberry Pi 4.
