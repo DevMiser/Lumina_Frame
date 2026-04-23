@@ -131,6 +131,8 @@ After rebooting, the Waveshare display should be active. If the display remains 
 
 > **Note:** If you later run `sudo apt full-upgrade` and the display stops working, re-open `/boot/firmware/config.txt` and verify the `dtoverlay` line is still present. A system upgrade can occasionally overwrite kernel overlay files, and re-saving the config line and rebooting is all that is needed to restore normal operation.
 
+Now chnge the rotation of your display by following the directions under "Bullseye/Buster Display Rotation on the display's wiki page here: https://www.waveshare.com/wiki/8inch_DSI_LCD_(C)
+
 ### 3. Install System-Level Dependencies
 
 Some packages must be installed at the system level via `apt` before setting up the Python environment. Open a terminal and enter the following commands in order:
