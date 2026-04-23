@@ -250,7 +250,7 @@ aplay -l
 You should see your USB speakerphone listed at **card 1**, similar to:
 
 ```
-card 1: USB [USB Audio Device], device 0: ...
+card 1: Phone [USB Speaker Phone], device 0: USB Audio [USB Audio]
 ```
 
 **If you are using a different speakerphone**, you will need to find its Vendor ID and Product ID first. Enter the following command:
