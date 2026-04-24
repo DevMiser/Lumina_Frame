@@ -10,7 +10,6 @@ import numpy as np
 import os
 import random
 import pvporcupine
-
 import pyaudio
 import queue
 import sounddevice # this import suppresses abberant ALSA lib messages
@@ -154,8 +153,8 @@ OPENWEATHER_API_KEY = os.environ["OPENWEATHER_API_KEY"]
 
 # --- Default weather location (overwritten by IP geolocation at startup if USE_IP_LOCATION=True) ---
 
-DEFAULT_WEATHER_Q        = "Delray Beach,FL,US"
-DEFAULT_LOCATION_DISPLAY = "Delray Beach, Florida"
+DEFAULT_WEATHER_Q        = "New York,NY,US"
+DEFAULT_LOCATION_DISPLAY = "New York, NY"
 USE_IP_LOCATION          = True
 
 # --- Initialize Google Gemini client ---
@@ -168,7 +167,7 @@ CHUNK_SIZE = 2048
 RATE = 24000
 FORMAT = pyaudio.paInt16
 INACTIVITY_TIMEOUT = 3   # Oracle times out after this many seconds of inactivity
-SCREEN_BLANK_TIMEOUT = 600  # Screen blanks after 10 minutes of no wake-word activity
+SCREEN_BLANK_TIMEOUT = 600  # Screen blanks after 10 minutes of no wake-word activity unless Always_On is enabled
 
 # --- Always-On Display Schedule ---
 
@@ -354,8 +353,35 @@ def set_always_on(enabled):
         "The screen will now follow the normal inactivity timeout."
     )
 
+def _backlight_path():
+    """Return the first sysfs backlight brightness path, or None."""
+    try:
+        entries = os.listdir("/sys/class/backlight")
+        if entries:
+            return f"/sys/class/backlight/{entries[0]}/brightness"
+    except OSError:
+        pass
+    return None
+
+_bl_path = None   # cached on first call
+
+
 def blank_screen():
-    os.system("xset dpms force off")
+    global _bl_path
+    if _bl_path is None:
+        _bl_path = _backlight_path() or ""
+
+    if _bl_path:
+        try:
+            with open(_bl_path, "w") as f:
+                f.write("0")
+            return
+        except OSError:
+            pass
+
+    # Fallback: disable compositor output via wlr-randr (install: sudo apt install wlr-randr)
+    if os.system("wlr-randr --output DSI-1 --off 2>/dev/null") != 0:
+        os.system("vcgencmd display_power 0 1")
 
 def generate_gemini_image(prompt):
     """Calls Gemini API to generate an image. Returns PIL Image or None."""
@@ -754,8 +780,46 @@ def find_saved_image(description):
         return best_path, best_label, best_score
     return None, None, 0
 
+def _reapply_touch_transform():
+    """Re-apply touch coordinate transform lost on display wake.
+    Mirrors dtoverlay=WS_xinchDSI_Touch,invertedy,swappedxy from config.txt.
+    Combined matrix for swappedxy+invertedy: 0 1 0 -1 0 1 0 0 1"""
+    try:
+        env = dict(os.environ, DISPLAY=os.environ.get("DISPLAY", ":0"))
+        out = subprocess.check_output(
+            ["xinput", "list", "--name-only"],
+            text=True, stderr=subprocess.DEVNULL, env=env
+        )
+        for name in out.splitlines():
+            name = name.strip()
+            if "touch" in name.lower():
+                subprocess.run(
+                    ["xinput", "set-prop", name,
+                     "Coordinate Transformation Matrix",
+                     "0", "1", "0", "-1", "0", "1", "0", "0", "1"],
+                    env=env, capture_output=True
+                )
+                break
+    except Exception:
+        pass
+
+
 def wake_screen():
-    os.system("xset dpms force on")
+    if _bl_path:
+        try:
+            max_path = _bl_path.replace("brightness", "max_brightness")
+            with open(max_path) as f:
+                max_val = f.read().strip()
+            with open(_bl_path, "w") as f:
+                f.write(max_val)
+            _reapply_touch_transform()
+            return
+        except OSError:
+            pass
+
+    if os.system("wlr-randr --output DSI-1 --on 2>/dev/null") != 0:
+        os.system("vcgencmd display_power 1 1")
+    _reapply_touch_transform()
 
 # --------------------------------------------------------------------------------
 # Visualizer Class
@@ -776,7 +840,8 @@ class Visualizer:
 #         self.WIDTH = 600
 #         self.HEIGHT = 400
 #         self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT))
-        os.system("xset s on && xset +dpms") # comment out this line to keep the display screen from sleeping
+        # xset DPMS not supported on Raspberry Pi Bookworm KMS/DRM stack;
+        # display power is managed via vcgencmd in blank_screen()/wake_screen().
         pygame.display.set_caption("Lumina")
 
         global aspect_ratio
@@ -1250,6 +1315,7 @@ class Realtime:
         self.new_image_this_session = False
         self.screen_on_requested = False
         self.screen_off_requested = False
+        self.show_logo_requested = False
 
     def start(self):
         global _active_session
@@ -1788,6 +1854,8 @@ class Realtime:
 
             elif func_name == "show_screen":
                 self.screen_on_requested = True
+                self.screen_off_requested = False
+                wake_screen()
                 if self.visualizer.last_image_surface is not None:
                     self.visualizer.current_image_surface = self.visualizer.last_image_surface
                     self.visualizer.state = 'image'
@@ -1798,6 +1866,7 @@ class Realtime:
 
             elif func_name == "turn_off_display":
                 self.screen_off_requested = True
+                self.screen_on_requested = False
                 self.visualizer.state = 'blanked'
                 time.sleep(0.1)
                 blank_screen()
@@ -1852,6 +1921,9 @@ class Realtime:
 
             elif func_name == "show_logo":
                 self.screen_on_requested = True
+                self.screen_off_requested = False
+                self.show_logo_requested = True
+                wake_screen()
                 self.visualizer.state = 'logo'
                 output = "The Lumina logo is now displayed on the screen."
 
@@ -1884,26 +1956,16 @@ class Realtime:
         print("Realtime session stopped.")
         print("\nListening for wake word...")
 
-def main():
+def _app_logic(visualizer):
+    """Audio/wake-word loop — runs in a background thread so the pygame
+    rendering loop can execute on the main thread (required by SDL2/OpenGL ES
+    on Raspberry Pi Bookworm's KMS/DRM stack)."""
     global viz
     url = "wss://api.openai.com/v1/realtime?model=gpt-realtime-1.5"
-    visualizer, porcupine, pa = None, None, None
+    porcupine, pa = None, None
     audio_stream = None
 
-    # --- Set ALSA Mixer Levels ---
-    # Run 'amixer scontrols' to verify control names for your speakerphone.
-    playback_ok = _set_alsa_playback(80)
-    capture_ok = _set_alsa_capture(35)
-    print(f"ALSA playback (PCM 80%): {'OK' if playback_ok else 'FAILED'}")
-    print(f"ALSA capture  (Mic 35%): {'OK' if capture_ok else 'FAILED'}")
-
     try:
-        visualizer = Visualizer()
-        viz = visualizer
-        viz_thread = threading.Thread(target=visualizer.run, daemon=True)
-        viz_thread.start()
-        time.sleep(0.5)
-
         # Initialize Porcupine (Wake Word)
         porcupine = pvporcupine.create(
             access_key=PICOVOICE_ACCESS_KEY,
@@ -2064,6 +2126,7 @@ def main():
                         screen_off = rt_session.screen_off_requested
                         new_image = rt_session.new_image_this_session
                         screen_on = rt_session.screen_on_requested
+                        show_logo = rt_session.show_logo_requested
 
                         rt_session.stop()
 
@@ -2078,13 +2141,13 @@ def main():
                             user_override_off = True
                         elif new_image or screen_on:
                             user_override_off = False
-                            # New image generated OR user asked to show screen
                             print("Showing image/logo, restarting blank timer.")
-                            if visualizer.last_image_surface is not None:
+                            wake_screen()
+                            if show_logo or visualizer.last_image_surface is None:
+                                visualizer.state = 'logo'
+                            else:
                                 visualizer.current_image_surface = visualizer.last_image_surface
                                 visualizer.state = 'image'
-                            else:
-                                visualizer.state = 'logo'
                             last_interaction_time = time.time()
                         elif was_blanked_at_wake:
                             # Woke from blank, no new image or screen commands
@@ -2140,10 +2203,37 @@ def main():
             pa.terminate()
         if porcupine is not None:
             porcupine.delete()
-        if visualizer is not None:
-            visualizer.stop()
-        print("Cleanup complete.")
+        visualizer.stop()
+        print("App logic cleanup complete.")
+
+
+def main():
+    global viz
+
+    # --- Set ALSA Mixer Levels ---
+    # Run 'amixer scontrols' to verify control names for your speakerphone.
+    playback_ok = _set_alsa_playback(80)
+    capture_ok = _set_alsa_capture(35)
+    print(f"ALSA playback (PCM 80%): {'OK' if playback_ok else 'FAILED'}")
+    print(f"ALSA capture  (Mic 35%): {'OK' if capture_ok else 'FAILED'}")
+
+    visualizer = Visualizer()
+    viz = visualizer
+
+    # _app_logic must run in a background thread so that visualizer.run()
+    # (pygame rendering) executes on the main thread — required by SDL2/OpenGL ES
+    # on Raspberry Pi Bookworm's KMS/DRM stack, which does not allow GL context
+    # sharing across threads.
+    app_thread = threading.Thread(target=_app_logic, args=(visualizer,), daemon=True)
+    app_thread.start()
+    time.sleep(0.5)
+
+    try:
+        visualizer.run()   # blocks on main thread until visualizer.stop() is called
+    except KeyboardInterrupt:
+        print("Keyboard interrupt received. Exiting.")
+        visualizer.stop()
+
 
 if __name__ == "__main__":
     main()
-    
