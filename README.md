@@ -283,7 +283,7 @@ Make sure your Waveshare DSI display is connected and your USB speakerphone is p
 ```
 cd /home/pi/Lumina
 source venv/bin/activate
-python3 Lumina_Frame.py
+python3 Lumina_Frame_Bookworm.py
 ```
 
 Wait for the Lumina logo to appear on the DSI display.
