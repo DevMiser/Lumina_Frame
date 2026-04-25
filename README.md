@@ -150,6 +150,7 @@ Some packages must be installed at the system level via `apt` before setting up 
 sudo apt install portaudio19-dev
 sudo apt install x11-xserver-utils
 sudo apt-get install libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
+sudo apt install pipewire pipewire-alsa wireplumber
 ```
 
 If asked whether you want to continue, enter **Y** and press Enter.
@@ -207,7 +208,7 @@ nano .env
 Add the following three lines to the file, replacing the placeholder text with your actual keys:
 
 ```
-GOOGLE_API_KEY="put your Google API key here between the quotation marks
+GOOGLE_API_KEY="put your Google API key here between the quotation marks"
 OPENAI_API_KEY="put your OpenAI API key here between the quotation marks"
 OPENWEATHER_API_KEY="put your OpenWeather API key here between the quotation marks"
 PICOVOICE_ACCESS_KEY="put your Picovoice Access key here between the quotation marks"
@@ -273,21 +274,66 @@ options snd-usb-audio index=1 vid=0x1234 pid=0x5678
 
 This ensures Lumina Frame can reliably adjust the microphone gain via ALSA Mixer each time the program starts.
 
----
+**### 11. Configure PipeWire Audio**
 
-### 11. Move the Keyword Files
+Raspberry Pi OS Trixie uses **PipeWire** as its audio server. PipeWire handles all audio routing — including USB speakerphone access, sample-rate conversion, and sharing the device between multiple applications — so no `~/.asoundrc` file is needed.
+
+First, enable and start the PipeWire services for your user session:
+
+```
+systemctl --user enable pipewire pipewire-pulse wireplumber
+systemctl --user start pipewire pipewire-pulse wireplumber
+```
+
+Verify PipeWire is running:
+
+```
+pactl info
+```
+
+You should see a line similar to `Server Name: PulseAudio (on PipeWire ...)`. If you see this, PipeWire is active.
+
+Next, create a PipeWire configuration file to increase the audio buffer size. This prevents clicking and stuttering that can occur when the AI voice audio arrives over the network in bursts:
+
+```
+mkdir -p ~/.config/pipewire/pipewire.conf.d
+sudo nano ~/.config/pipewire/pipewire.conf.d/fix-clicks.conf
+```
+
+Paste the following into the file:
+
+```
+context.properties = {
+    default.clock.rate        = 48000
+    default.clock.quantum     = 2048
+    default.clock.min-quantum = 1024
+    default.clock.max-quantum = 8192
+}
+```
+
+Press **Ctrl + X**, then **Y**, then **Enter** to save. Then restart PipeWire to apply the change:
+
+```
+systemctl --user restart pipewire pipewire-pulse wireplumber
+```
+
+> **Note:** Do **not** create a `~/.asoundrc` file. PipeWire manages ALSA routing automatically, and an `~/.asoundrc` file will conflict with it.
+
+### 12. Move the Keyword Files
 
 Move the Lumina keyword files to the Porcupine raspberry-pi folder by openeing a terminal and entering the 
 following commands: 
 
-'''
+```
 mv /home/pi/Lumina/Hey-Lumina_en_raspberry-pi_v4_0_0.ppn /home/pi/Lumina/venv/lib/python3.13/site-packages/pvporcupine/resources/keyword_files/raspberry-pi
 mv /home/pi/Lumina/exit-the-program_en_raspberry-pi_v4_0_0.ppn /home/pi/Lumina/venv/lib/python3.13/site-packages/pvporcupine/resources/keyword_files/raspberry-pi
-'''
+```
 
 Important - Note there are two blank spaces in each of the above commands – one between 
 "mv" and "/home" and one between ".ppn" and "/home". Be sure to include them. Also 
 there is no space between “lib/” and “python3.13”. 
+
+---
 
 ## Run the Program
 
@@ -455,15 +501,20 @@ Description=Lumina Frame
 After=graphical.target
 
 [Service]
+[Service]
 User=pi
 WorkingDirectory=/home/pi/Lumina
 Environment=DISPLAY=:0
+Environment=WAYLAND_DISPLAY=wayland-1
+Environment=XDG_RUNTIME_DIR=/run/user/1000
 ExecStart=/home/pi/Lumina/venv/bin/python /home/pi/Lumina/Lumina_Frame_Bookworm.py
 Restart=on-failure
 
 [Install]
 WantedBy=graphical.target
 ```
+
+> **Note:** `XDG_RUNTIME_DIR=/run/user/1000` assumes the default `pi` user, whose UID is 1000. If your user has a different UID, run `id -u` in a terminal to confirm the correct number.
 
 Press **Ctrl + X**, then **Y**, then **Enter** to save. Then enable and start the service:
 
@@ -479,7 +530,7 @@ Lumina Frame will now start automatically each time the Raspberry Pi boots.
 
 ## Configuration Reference
 
-The following constants near the top of `Lumina_Frame9.py` can be adjusted to suit your setup:
+The following constants near the top of `Lumina_Frame_Bookworm.py` can be adjusted to suit your setup:
 
 | Constant | Default | Description |
 |---|---|---|
@@ -502,7 +553,7 @@ If `USE_IP_LOCATION` is `True`, Lumina Frame will attempt to determine your loca
 
 ```
 Lumina/
-├── Lumina_Frame_Bookorm.py  # Main program
+├── Lumina_Frame_Bookworm.py  # Main program
 ├── requirements.txt         # Python dependencies
 ├── .env                     # Your API keys (never commit this)
 ├── .env.example             # Template showing required keys
@@ -520,7 +571,7 @@ Lumina/
 Confirm the DSI ribbon cable is fully seated at both ends. Verify the display is enabled in `raspi-config` under Interface Options > Display.
 
 **The screen never blanks, or screen-control voice commands have no effect.**
-Verify that the desktop session is running under X11, not Wayland. Run `echo $XDG_SESSION_TYPE` in a terminal — it should print `x11`. If it prints `wayland`, re-run `sudo raspi-config` → Advanced Options → Wayland → X11 and reboot.
+Trixie uses Wayland by default, which is fully supported. Confirm that the `/sys/class/backlight/10-0045/brightness` sysfs path exists by running `ls /sys/class/backlight/`. If the folder name differs, update the `_backlight_path()` function in `Lumina_Frame_Bookworm.py` with the correct name.
 
 **Lumina does not respond to its wake word.**
 Check that your USB speakerphone is recognized at card index 1 using `arecord -l`. Confirm your PicoVoice access key is correctly entered in `.env`.
@@ -540,7 +591,12 @@ The program uses a guarded mic mode that suppresses speaker bleed during AI spee
 **Timers fire but Lumina doesn't announce them.**
 If no active session is open when a timer expires, the program will play a chime and display the timer name on screen instead. This is expected behavior.
 
+**Audio device errors on startup (`Invalid sample rate` or `Device unavailable`).**
+Confirm PipeWire is running: `pactl info` should show `PulseAudio (on PipeWire ...)`. If it is not running, start it with `systemctl --user start pipewire pipewire-pulse wireplumber`. Also confirm there is **no** `~/.asoundrc` file in your home directory (`ls -la ~`). If one exists, delete it with `rm ~/.asoundrc` and restart PipeWire.
+
+**Clicking or stuttering when Lumina speaks.**
+Confirm the PipeWire quantum config file exists at `~/.config/pipewire/pipewire.conf.d/fix-clicks.conf` and that the `default.clock.quantum` is set to `2048`. Restart PipeWire after any changes: `systemctl --user restart pipewire pipewire-pulse wireplumber`.
+
 ---
 
 *Provided by DevMiser — https://github.com/DevMiser*
-
