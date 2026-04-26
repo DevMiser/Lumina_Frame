@@ -555,7 +555,7 @@ Lumina/
 ---
 ## Printing and Assembling the Lumina Frame Enclosure
 
-If you would like to use the option frame and speakerphone cradle, follow these instructions.
+If you would like to use the optional 3D-printed frame and speakerphone cradle, follow these instructions.
 
 3D print the frame, cradle, cradle bottom, and four of the tabs [Figure 1].  The STLs for these 3D parts are on this GitHub repository. The recommended setting for slicing the STLs are 0.20mm quality with 25% infill. Only the ______ needs supports.  The metric screw size is _mm x 0._mm x 8mm.  They are available here:
 
