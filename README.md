@@ -486,45 +486,30 @@ You can also press **Ctrl + C** in the terminal.
 
 ---
 
-## Running Lumina Frame Automatically at Startup (Optional)
+**## Running Lumina Frame Automatically at Startup (Optional)**
 
-After everything is working, you may want Lumina Frame to launch automatically when the Raspberry Pi boots. To do so, create a systemd service file:
+After everything is working, you may want Lumina Frame to launch automatically when the Raspberry Pi boots. On Raspberry Pi OS Trixie, the most reliable way to do this is with an XDG autostart file, which tells the Wayfire desktop session to launch Lumina Frame automatically once the display, audio, and all session services are fully up.
+
+Open a terminal and enter:
 
 ```
-sudo nano /etc/systemd/system/lumina.service
+mkdir -p ~/.config/autostart
+nano ~/.config/autostart/lumina.desktop
 ```
 
 Add the following content:
 
 ```
-[Unit]
-Description=Lumina Frame
-After=graphical.target
-
-[Service]
-User=pi
-WorkingDirectory=/home/pi/Lumina
-Environment=DISPLAY=:0
-Environment=WAYLAND_DISPLAY=wayland-1
-Environment=XDG_RUNTIME_DIR=/run/user/1000
-ExecStart=/home/pi/Lumina/venv/bin/python /home/pi/Lumina/Lumina_Frame.py
-Restart=on-failure
-
-[Install]
-WantedBy=graphical.target
+[Desktop Entry]
+Type=Application
+Name=Lumina Frame
+Exec=/bin/bash -c 'cd /home/pi/Lumina && /home/pi/Lumina/venv/bin/python /home/pi/Lumina/Lumina_Frame_Orb.py'
+X-GNOME-Autostart-enabled=true
 ```
 
-> **Note:** `XDG_RUNTIME_DIR=/run/user/1000` assumes the default `pi` user, whose UID is 1000. If your user has a different UID, run `id -u` in a terminal to confirm the correct number.
+Press **Ctrl + X**, then **Y**, then **Enter** to save. Lumina Frame will now launch automatically each time the Raspberry Pi boots.
 
-Press **Ctrl + X**, then **Y**, then **Enter** to save. Then enable and start the service:
-
-```
-sudo systemctl daemon-reload
-sudo systemctl enable lumina.service
-sudo systemctl start lumina.service
-```
-
-Lumina Frame will now start automatically each time the Raspberry Pi boots.
+> **Note:** If you ever need to stop Lumina Frame from launching at startup, delete or rename the file: `rm ~/.config/autostart/lumina.desktop`
 
 ---
 
@@ -582,9 +567,6 @@ Verify your Google Gemina API key is valid and is correctly entered in `.env`tha
 **Weather queries fail or return errors.**
 Verify your OpenWeather API key is correctly entered in `.env`. New API keys can take a few minutes to activate after registration. Confirm your network connection is working.
 
-**The virtual environment is not found on startup.**
-If running as a service, confirm the `ExecStart` path in the systemd service file points to `/home/pi/Lumina/venv/bin/python`.
-
 **Speaker audio causes Lumina to interrupt itself.**
 The program uses a guarded mic mode that suppresses speaker bleed during AI speech. If self-interruption occurs, try increasing the `threshold` value in the `server_vad` section of the session configuration in `Lumina_Frame9.py`.
 
@@ -596,6 +578,9 @@ Confirm PipeWire is running: `pactl info` should show `PulseAudio (on PipeWire .
 
 **Clicking or stuttering when Lumina speaks.**
 Confirm the PipeWire quantum config file exists at `~/.config/pipewire/pipewire.conf.d/fix-clicks.conf` and that the `default.clock.quantum` is set to `2048`. Restart PipeWire after any changes: `systemctl --user restart pipewire pipewire-pulse wireplumber`.
+
+> **Lumina Frame does not launch at startup (if yu have set it to do so).**
+> Confirm the autostart file exists: `ls ~/.config/autostart/lumina.desktop`. If it is missing, re-create it following the steps in the autostart section above. To check whether the script is currently running, enter `pgrep -a python` in a terminal.
 
 ---
 
