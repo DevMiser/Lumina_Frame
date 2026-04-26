@@ -30,6 +30,10 @@ from google import genai
 from google.genai import types
 from google.api_core import exceptions
 
+from OpenGL.GL import *
+from OpenGL.GL.shaders import compileProgram, compileShader
+import numpy.fft
+
 from PIL import Image
 
 # ---Initialize Pygame
@@ -231,48 +235,38 @@ def get_best_aspect_ratio(width, height):
 
 # --- Chime (fallback when a timer fires after the session ends) ---
 
-# Shared PyAudio instance set by main() at startup so _play_chime can open
-# an output stream without spawning a separate process that would conflict
-# with the already-open Porcupine input stream.
 _pa_instance = None
 
 def _play_chime():
-    """Play a short 880 Hz beep three times (1-second apart) using PyAudio.
-    Used when a timer fires after the session ends."""
-    if _pa_instance is None:
-        print("Chime: PyAudio instance not available.")
+    """Play a short 880 Hz beep three times (1-second apart) using pygame.mixer."""
+    if not pygame.mixer.get_init():
+        print("Chime: pygame mixer not initialized.")
         return
 
-    sample_rate = RATE   # 24000 Hz — same rate the device already handles
+    sample_rate, _, channels = pygame.mixer.get_init()
     freq = 880
     duration = 0.8
     num_samples = int(sample_rate * duration)
-    raw = bytearray()
-    for i in range(num_samples):
-        val = int(32767 * math.sin(2 * math.pi * freq * i / sample_rate))
-        fade = min(1.0, (num_samples - i) / (sample_rate * 0.1))
-        raw += struct.pack('<h', int(val * fade))
-    tone = bytes(raw)
+
+    t = np.arange(num_samples)
+    wave = np.sin(2 * np.pi * freq * t / sample_rate)
+    fade_len = int(sample_rate * 0.1)
+    fade = np.ones(num_samples)
+    fade[-fade_len:] = np.linspace(1.0, 0.0, fade_len)
+    wave = (wave * fade * 32767).astype(np.int16)
+
+    if channels == 2:
+        wave = np.column_stack([wave, wave])
+
+    sound = pygame.sndarray.make_sound(wave)
 
     for i in range(3):
         if i > 0:
             time.sleep(1.0)
-        try:
-            stream = _pa_instance.open(
-                format=FORMAT,
-                channels=1,
-                rate=sample_rate,
-                output=True,
-            )
-            stream.write(tone)
-            stream.stop_stream()
-            stream.close()
-        except Exception as e:
-            print(f"Chime error: {e}")
-            break
+        sound.play()
+        time.sleep(duration + 0.05)
 
 # --- Persistent timer state (survives inactivity timeouts / session restarts) ---
-# Stored here at module level so a new Realtime session can see timers set in a previous one.
 
 _timers = {}              # label -> {"timer": threading.Timer, "start": float, "duration": float}
 _timers_lock = threading.Lock()
@@ -364,7 +358,6 @@ def _backlight_path():
     return None
 
 _bl_path = None   # cached on first call
-
 
 def blank_screen():
     global _bl_path
@@ -780,30 +773,6 @@ def find_saved_image(description):
         return best_path, best_label, best_score
     return None, None, 0
 
-def _reapply_touch_transform():
-    """Re-apply touch coordinate transform lost on display wake.
-    Mirrors dtoverlay=WS_xinchDSI_Touch,invertedy,swappedxy from config.txt.
-    Combined matrix for swappedxy+invertedy: 0 1 0 -1 0 1 0 0 1"""
-    try:
-        env = dict(os.environ, DISPLAY=os.environ.get("DISPLAY", ":0"))
-        out = subprocess.check_output(
-            ["xinput", "list", "--name-only"],
-            text=True, stderr=subprocess.DEVNULL, env=env
-        )
-        for name in out.splitlines():
-            name = name.strip()
-            if "touch" in name.lower():
-                subprocess.run(
-                    ["xinput", "set-prop", name,
-                     "Coordinate Transformation Matrix",
-                     "0", "1", "0", "-1", "0", "1", "0", "0", "1"],
-                    env=env, capture_output=True
-                )
-                break
-    except Exception:
-        pass
-
-
 def wake_screen():
     if _bl_path:
         try:
@@ -812,14 +781,12 @@ def wake_screen():
                 max_val = f.read().strip()
             with open(_bl_path, "w") as f:
                 f.write(max_val)
-            _reapply_touch_transform()
             return
         except OSError:
             pass
 
     if os.system("wlr-randr --output DSI-1 --on 2>/dev/null") != 0:
         os.system("vcgencmd display_power 1 1")
-    _reapply_touch_transform()
 
 # --------------------------------------------------------------------------------
 # Visualizer Class
@@ -831,25 +798,27 @@ viz = None
 class Visualizer:
     def __init__(self):
         pygame.init()
-        pygame.mixer.init()
+        pygame.mixer.init(frequency=48000, size=-16, channels=1)
 
         display_info = pygame.display.Info()
         self.WIDTH = display_info.current_w
         self.HEIGHT = display_info.current_h
-        self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
-#         self.WIDTH = 600
-#         self.HEIGHT = 400
-#         self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT))
-        # xset DPMS not supported on Raspberry Pi Bookworm KMS/DRM stack;
-        # display power is managed via vcgencmd in blank_screen()/wake_screen().
+#        self.WIDTH = 600
+#        self.HEIGHT = 400    
+        # Initialize with OpenGL and Double Buffering
+        pygame.display.gl_set_attribute(pygame.GL_CONTEXT_MAJOR_VERSION, 2)
+        pygame.display.gl_set_attribute(pygame.GL_CONTEXT_MINOR_VERSION, 1)
+        self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT), pygame.FULLSCREEN | pygame.DOUBLEBUF | pygame.OPENGL)
+#        self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT), pygame.DOUBLEBUF | pygame.OPENGL)
+        self.WIDTH, self.HEIGHT = self.screen.get_size()
+        pygame.mouse.set_visible(False)
         pygame.display.set_caption("Lumina")
 
         global aspect_ratio
         aspect_ratio = get_best_aspect_ratio(self.WIDTH, self.HEIGHT)
 
         self.BACKGROUND = (0, 0, 0)
-        self.WAVEFORM_COLOR = (0, 255, 158)
-        self.TEXT_COLOR = (173, 216, 230)  # Light blue (#ADD8E6)
+        self.TEXT_COLOR = (173, 216, 230)
 
         self.font = pygame.font.Font(None, 74)
         self.text_font = pygame.font.SysFont("Arial Black", 36)
@@ -857,31 +826,142 @@ class Visualizer:
         self.countdown_label_font = pygame.font.SysFont("Arial Black", 48)
 
         self.audio_data = np.zeros(CHUNK_SIZE, dtype=np.float32)
+        self.audio_bands = {"bass": 0.0, "mid": 0.0, "treble": 0.0, "volume": 0.0}
         self.data_lock = threading.Lock()
-
-        self.smoothing_window = 51
-        self.smoothing_poly = 3
-        self.silence_threshold = 0.01
-        self.amplitude_scale = 1.5
 
         self.state = 'logo'
         self.running = False
+        self.start_time = time.time()
 
-        # Image display surfaces
+        # UI Surfaces
+        self.ui_surface = pygame.Surface((self.WIDTH, self.HEIGHT))
         self.current_image_surface = None
         self.last_image_surface = None
         self.logo_surface = None
-
-        # Persistent PIL image for saving across sessions
         self.last_generated_pil_image = None
         self.last_image_label = ""
-
-        # Text display
         self.display_text_line1 = ""
         self.display_text_line2 = ""
-
-        # Countdown state: remembers the state to restore when the last timer ends
         self.pre_countdown_state = 'logo'
+
+        # OpenGL Setup
+        self._init_opengl()
+        
+    def _init_opengl(self):
+        glViewport(0, 0, self.WIDTH, self.HEIGHT)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glEnable(GL_PROGRAM_POINT_SIZE) # For particle size scaling
+        glEnable(GL_POINT_SPRITE)       # Required for gl_PointCoord in GL 2.1
+
+        # --- ORB SHADER (Raymarched Sphere) ---
+        orb_vertex = """#version 120
+        void main() {
+            gl_Position = gl_Vertex;
+        }
+        """
+        orb_fragment = """#version 120
+        uniform vec2 u_resolution;
+        uniform float u_time;
+        uniform float u_volume;
+        uniform float u_bass;
+
+        void main() {
+            vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / min(u_resolution.y, u_resolution.x);
+            
+            // Breathing idle + volume pulse
+            float breathe = sin(u_time * 2.0) * 0.02;
+            float radius = 0.3 + (u_volume * 0.3) + breathe + (u_bass * 0.1);
+            
+            float dist = length(uv);
+            
+            // Sphere base
+            float sphere = smoothstep(radius, radius - 0.02, dist);
+            
+            // Inner glow and colors (cyan to deep blue)
+            vec3 color = vec3(0.0, 0.5, 1.0) * (1.0 - dist * 2.0);
+            color += vec3(0.0, 0.8, 0.9) * smoothstep(radius - 0.05, 0.0, dist) * (0.5 + u_volume);
+            
+            // Outer aura
+            float aura = smoothstep(radius + 0.15 + (u_bass*0.2), radius, dist) * 0.4;
+            color += vec3(0.0, 0.6, 1.0) * aura;
+
+            gl_FragColor = vec4(color, sphere + aura);
+        }
+        """
+        
+        # --- PARTICLE SHADER (Orbiting Rings) ---
+        particle_vertex = """#version 120
+        uniform vec2 u_resolution;
+        uniform float u_time;
+        uniform float u_treble;
+        uniform float u_bass;
+        
+        attribute vec3 a_position; // x, y, random_offset
+        
+        varying float v_alpha;
+
+        void main() {
+            // Rotation speed based on time and treble (pitch)
+            float speed = u_time * (0.5 + u_treble * 5.0) + a_position.z;
+            
+            // Expand orbit on plosives (bass)
+            float current_radius = a_position.x * (1.0 + u_bass * 0.5);
+            
+            vec2 pos = vec2(
+                cos(speed) * current_radius,
+                sin(speed) * current_radius * 0.4 // 0.4 flattens it to an orbital ring
+            );
+            
+            // Tilt the orbit slightly
+            mat2 tilt = mat2(cos(0.3), -sin(0.3), sin(0.3), cos(0.3));
+            pos = tilt * pos;
+
+            // Normalize to screen
+            vec2 screen_pos = pos / min(u_resolution.x, u_resolution.y) * 2.0;
+            
+            gl_Position = vec4(screen_pos, 0.0, 1.0);
+            gl_PointSize = 2.0 + (u_treble * 3.0); // Particles grow with treble
+            
+            // Fade particles at the edges of the orbit
+            v_alpha = 0.3 + (0.7 * abs(sin(speed)));
+        }
+        """
+        particle_fragment = """#version 120
+        varying float v_alpha;
+        void main() {
+            // Soft circular particles
+            vec2 circCoord = 2.0 * gl_PointCoord - 1.0;
+            if (dot(circCoord, circCoord) > 1.0) {
+                discard;
+            }
+            gl_FragColor = vec4(0.8, 0.9, 1.0, v_alpha);
+        }
+        """
+
+        self.orb_shader = compileProgram(
+            compileShader(orb_vertex, GL_VERTEX_SHADER),
+            compileShader(orb_fragment, GL_FRAGMENT_SHADER)
+        )
+        self.particle_shader = compileProgram(
+            compileShader(particle_vertex, GL_VERTEX_SHADER),
+            compileShader(particle_fragment, GL_FRAGMENT_SHADER)
+        )
+
+        # Full screen quad for orb
+        self.quad_vertices = np.array([
+            -1.0, -1.0,  1.0, -1.0, -1.0,  1.0,
+             1.0, -1.0,  1.0,  1.0, -1.0,  1.0
+        ], dtype=np.float32)
+
+        # Generate 2000 particles in a ring distribution
+        num_particles = 2000
+        # Format: radius, unused_y, random_time_offset
+        self.particles = np.zeros((num_particles, 3), dtype=np.float32)
+        for i in range(num_particles):
+            # Base orbit radius between 0.4 and 0.8
+            self.particles[i][0] = 0.4 + (random.random() * 0.4) 
+            self.particles[i][2] = random.random() * math.pi * 2 # Random position in orbit
 
     def load_logo(self):
         """Load and scale the logo image for pygame display."""
@@ -912,11 +992,10 @@ class Visualizer:
             self.logo_surface = None
 
     def display_logo(self):
-        """Render the preloaded logo centered on black background."""
-        self.screen.fill(self.BACKGROUND)
+        self.ui_surface.fill(self.BACKGROUND)
         if self.logo_surface:
             logo_rect = self.logo_surface.get_rect(center=(self.WIDTH // 2, self.HEIGHT // 2))
-            self.screen.blit(self.logo_surface, logo_rect)
+            self.ui_surface.blit(self.logo_surface, logo_rect)
 
     def set_image(self, pil_image, label=""):
         """Convert PIL Image to pygame surface, scale to fill screen, and store."""
@@ -947,25 +1026,22 @@ class Visualizer:
 
     def display_image(self):
         """Render the current image surface centered on black background."""
-        self.screen.fill(self.BACKGROUND)
+        self.ui_surface.fill(self.BACKGROUND)
         if self.current_image_surface:
             img_rect = self.current_image_surface.get_rect(center=(self.WIDTH // 2, self.HEIGHT // 2))
-            self.screen.blit(self.current_image_surface, img_rect)
+            self.ui_surface.blit(self.current_image_surface, img_rect)
 
     def set_text(self, line1, line2=""):
-        """Set text to display and switch to text state."""
         self.display_text_line1 = line1
         self.display_text_line2 = line2
         self.state = 'text'
 
     def display_text(self):
-        """Render text centered on black background with word wrapping for line2."""
-        self.screen.fill(self.BACKGROUND)
-
+        self.ui_surface.fill(self.BACKGROUND)
         if self.display_text_line1:
             text_surface1 = self.text_font.render(self.display_text_line1, True, self.TEXT_COLOR)
             rect1 = text_surface1.get_rect(center=(self.WIDTH // 2, self.HEIGHT // 4))
-            self.screen.blit(text_surface1, rect1)
+            self.ui_surface.blit(text_surface1, rect1)
 
         if self.display_text_line2:
             wrapped = textwrap.fill(self.display_text_line2, width=50)
@@ -974,11 +1050,12 @@ class Visualizer:
             for i, line in enumerate(lines):
                 text_surface = self.text_font.render(line, True, self.TEXT_COLOR)
                 rect = text_surface.get_rect(center=(self.WIDTH // 2, y_start + i * 50))
-                self.screen.blit(text_surface, rect)
+                self.ui_surface.blit(text_surface, rect)
 
     def display_countdown(self):
         """Render all active timers as label + MM:SS (or HH:MM:SS), stacked vertically."""
-        self.screen.fill(self.BACKGROUND)
+        # Ensure drawing to ui_surface, not screen
+        self.ui_surface.fill(self.BACKGROUND) 
         with _timers_lock:
             snapshot = list(_timers.items())
         if not snapshot:
@@ -998,68 +1075,114 @@ class Visualizer:
         for i, (label, time_str) in enumerate(rows):
             cy = start_y + i * row_height
             label_surf = self.countdown_label_font.render(label, True, self.TEXT_COLOR)
-            time_surf = self.countdown_font.render(time_str, True, self.WAVEFORM_COLOR)
-            self.screen.blit(label_surf, label_surf.get_rect(center=(self.WIDTH // 2, cy - 50)))
-            self.screen.blit(time_surf, time_surf.get_rect(center=(self.WIDTH // 2, cy + 40)))
+            time_surf = self.countdown_font.render(time_str, True, self.TEXT_COLOR)
+            # Ensure we are blitting to ui_surface, not screen
+            self.ui_surface.blit(label_surf, label_surf.get_rect(center=(self.WIDTH // 2, cy - 50)))
+            self.ui_surface.blit(time_surf, time_surf.get_rect(center=(self.WIDTH // 2, cy + 40)))
 
     def update_data(self, audio_bytes):
         samples = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+        
+        # FFT Analysis
+        if len(samples) > 0:
+            fft_data = np.abs(np.fft.rfft(samples))
+            
+            # Simple frequency banding
+            volume = np.mean(np.abs(samples))
+            bass = np.mean(fft_data[1:10]) if len(fft_data) > 10 else 0
+            mid = np.mean(fft_data[10:50]) if len(fft_data) > 50 else 0
+            treble = np.mean(fft_data[50:]) if len(fft_data) > 50 else 0
+
+            with self.data_lock:
+                # Smooth the data heavily to prevent jitter in the 3D visual
+                self.audio_bands["volume"] = (self.audio_bands["volume"] * 0.7) + (volume * 0.3 * 5.0)
+                self.audio_bands["bass"] = (self.audio_bands["bass"] * 0.8) + (bass * 0.2 * 0.05)
+                self.audio_bands["mid"] = (self.audio_bands["mid"] * 0.8) + (mid * 0.2 * 0.05)
+                self.audio_bands["treble"] = (self.audio_bands["treble"] * 0.8) + (treble * 0.2 * 0.05)
+
+    def draw_opengl_scene(self):
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        current_time = time.time() - self.start_time
+
         with self.data_lock:
-            if len(samples) != len(self.audio_data):
-                self.audio_data = np.zeros(len(samples), dtype=np.float32)
-            self.audio_data[:] = samples
+            vol = self.audio_bands["volume"]
+            bass = self.audio_bands["bass"]
+            treble = self.audio_bands["treble"]
 
-    def clear_to_black(self):
-        self.screen.fill(self.BACKGROUND)
+        # 1. Draw Orb
+        glUseProgram(self.orb_shader)
+        
+        loc_res = glGetUniformLocation(self.orb_shader, "u_resolution")
+        loc_time = glGetUniformLocation(self.orb_shader, "u_time")
+        loc_vol = glGetUniformLocation(self.orb_shader, "u_volume")
+        loc_bass = glGetUniformLocation(self.orb_shader, "u_bass")
+        
+        glUniform2f(loc_res, self.WIDTH, self.HEIGHT)
+        glUniform1f(loc_time, current_time)
+        glUniform1f(loc_vol, vol)
+        glUniform1f(loc_bass, bass)
 
-    def is_silent(self, data):
-        return np.mean(np.abs(data)) < self.silence_threshold
+        glEnableClientState(GL_VERTEX_ARRAY)
+        glVertexPointer(2, GL_FLOAT, 0, self.quad_vertices)
+        glDrawArrays(GL_TRIANGLES, 0, 6)
+        glDisableClientState(GL_VERTEX_ARRAY)
 
-    def generate_squiggle(self, length):
-        noise = np.random.randn(length)
-        window_length = 51
-        if length < window_length:
-            window_length = length if length % 2 != 0 else length - 1
-        if window_length < 5:
-            return np.zeros(length)
-        smoothed_noise = savgol_filter(noise, window_length, 3)
-        return smoothed_noise * 0.008
+        # 2. Draw Orbiting Particles
+        glUseProgram(self.particle_shader)
+        
+        loc_p_res = glGetUniformLocation(self.particle_shader, "u_resolution")
+        loc_p_time = glGetUniformLocation(self.particle_shader, "u_time")
+        loc_p_treble = glGetUniformLocation(self.particle_shader, "u_treble")
+        loc_p_bass = glGetUniformLocation(self.particle_shader, "u_bass")
+        
+        glUniform2f(loc_p_res, self.WIDTH, self.HEIGHT)
+        glUniform1f(loc_p_time, current_time)
+        glUniform1f(loc_p_treble, treble)
+        glUniform1f(loc_p_bass, bass)
 
-    def draw_waveform(self):
-        self.screen.fill(self.BACKGROUND)
-        with self.data_lock:
-            current_data = self.audio_data.copy()
+        pos_attrib = glGetAttribLocation(self.particle_shader, "a_position")
+        glEnableVertexAttribArray(pos_attrib)
+        glVertexAttribPointer(pos_attrib, 3, GL_FLOAT, GL_FALSE, 0, self.particles)
+        
+        glDrawArrays(GL_POINTS, 0, len(self.particles))
+        
+        glDisableVertexAttribArray(pos_attrib)
+        glUseProgram(0)
 
-        try:
-            smoothed_data = savgol_filter(current_data, self.smoothing_window, self.smoothing_poly)
-        except ValueError:
-            smoothed_data = current_data
-
-        is_silent_flag = self.is_silent(smoothed_data)
-        zero_y = (self.HEIGHT // 2) - 10
-        points = []
-
-        if is_silent_flag:
-            squiggle = self.generate_squiggle(len(smoothed_data))
-            for i, val in enumerate(squiggle):
-                x = int(i * self.WIDTH / len(squiggle))
-                y = int(zero_y + val * self.HEIGHT)
-                points.append((x, y))
-            if len(points) > 1:
-                pygame.draw.lines(self.screen, self.WAVEFORM_COLOR, False, points, 6)
-        else:
-            for i, sample in enumerate(smoothed_data):
-                x = int(i * self.WIDTH / len(smoothed_data))
-                scaled_amplitude = sample * (self.HEIGHT / 2.5) * self.amplitude_scale
-                y = int(zero_y + scaled_amplitude)
-                points.append((x, y))
-            if len(points) > 1:
-                pygame.draw.lines(self.screen, self.WAVEFORM_COLOR, False, points, 3)
+    def draw_pygame_ui_to_gl(self):
+        """Converts the active Pygame UI surface to an OpenGL texture and renders it."""
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        
+        # Changed "RGBA" to "RGB" to match the default pygame Surface format
+        texture_data = pygame.image.tostring(self.ui_surface, "RGB", True)
+        
+        tex_id = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_2D, tex_id)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        
+        # Changed GL_RGBA to GL_RGB
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self.WIDTH, self.HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, texture_data)
+        
+        glEnable(GL_TEXTURE_2D)
+        
+        # Set color to white so the texture isn't tinted by any lingering shader colors
+        glColor4f(1.0, 1.0, 1.0, 1.0) 
+        
+        glBegin(GL_QUADS)
+        glTexCoord2f(0, 0); glVertex2f(-1, -1)
+        glTexCoord2f(1, 0); glVertex2f(1, -1)
+        glTexCoord2f(1, 1); glVertex2f(1, 1)
+        glTexCoord2f(0, 1); glVertex2f(-1, 1)
+        glEnd()
+        glDisable(GL_TEXTURE_2D)
+        glDeleteTextures(1, [tex_id])
 
     def run(self):
         self.running = True
         self.load_logo()
         clock = pygame.time.Clock()
+        
         while self.running:
             if self.state == 'blanked':
                 time.sleep(1)
@@ -1070,34 +1193,30 @@ class Visualizer:
                     self.running = False
 
             if self.state == 'visualizing':
-                self.draw_waveform()
+                self.draw_opengl_scene()
                 pygame.display.flip()
-                clock.tick(30)
-            elif self.state == 'logo':
-                self.display_logo()
-                pygame.display.flip()
-                clock.tick(10)
-            elif self.state == 'text':
-                self.display_text()
-                pygame.display.flip()
-                clock.tick(10)
-            elif self.state == 'image':
-                self.display_image()
-                pygame.display.flip()
-                clock.tick(10)
-            elif self.state == 'countdown':
-                with _timers_lock:
-                    any_timers = bool(_timers)
-                if not any_timers:
-                    self.state = self.pre_countdown_state or 'logo'
-                    continue
-                self.display_countdown()
-                pygame.display.flip()
-                clock.tick(4)
+                clock.tick(30) # Keep FPS controlled
             else:
-                self.clear_to_black()
+                # Render to the hidden pygame surface first
+                if self.state == 'logo':
+                    self.display_logo()
+                elif self.state == 'text':
+                    self.display_text()
+                elif self.state == 'image':
+                    self.display_image()
+                elif self.state == 'countdown':
+                    with _timers_lock:
+                        any_timers = bool(_timers)
+                    if not any_timers:
+                        self.state = self.pre_countdown_state or 'logo'
+                        continue
+                    self.display_countdown()
+                
+                # Push the hidden surface to OpenGL
+                self.draw_pygame_ui_to_gl()
                 pygame.display.flip()
                 clock.tick(10)
+
         pygame.quit()
 
     def stop(self):
@@ -1970,7 +2089,7 @@ def _app_logic(visualizer):
         porcupine = pvporcupine.create(
             access_key=PICOVOICE_ACCESS_KEY,
             keywords=['Hey-Lumina', 'exit-the-program'],
-            sensitivities=[0.3, 0.3]
+            sensitivities=[0.5, 0.3]
         )
 
         pa = pyaudio.PyAudio()
@@ -2206,7 +2325,6 @@ def _app_logic(visualizer):
         visualizer.stop()
         print("App logic cleanup complete.")
 
-
 def main():
     global viz
 
@@ -2233,7 +2351,6 @@ def main():
     except KeyboardInterrupt:
         print("Keyboard interrupt received. Exiting.")
         visualizer.stop()
-
 
 if __name__ == "__main__":
     main()
