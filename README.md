@@ -1,7 +1,7 @@
 # Lumina Frame
 ### AI Voice Assistant & Art Generator for Raspberry Pi 4
 
-Lumina Frame is a voice-activated AI assistant with an integrated AI art generator, running on a Raspberry Pi 4 with an attached DSI touchscreen display and USB speakerphone. Say the wake word **"Hey Lumina"** to start a conversation. Ask questions, request the time or weather, generate and iteratively edit AI artwork, set countdown timers, recall previously saved images, and more — all by voice.
+Lumina Frame is a voice-activated AI assistant with an integrated AI art generator, running on a Raspberry Pi 4 with an attached DSI touchscreen display and USB speakerphone. Say the wake word **"Hey Lumina"** to start a conversation. Ask questions, request the time or weather, generate AI artwork, set countdown timers, recall previously saved images, and more — all by voice.
 
 Lumina Frame uses PicoVoice Porcupine for wake-word detection, the OpenAI Realtime API for conversational voice AI, Google Gemini' Nano Banana 2 for AI image generation, and the OpenWeather API for current weather conditions and multi-day forecasts.
 
@@ -16,10 +16,10 @@ The following steps are required:
 - Obtain the necessary hardware — listed below
 - Create an OpenAI account and obtain your personal secret API key
 - Create a Google account and obtain your Gemini API key
-- Create a PicoVoice account and obtain your personal secret access key
-- Create an OpenWeather account and obtain your personal API key
+- Create a PicoVoice account and obtain your personal secret access key (free)
+- Create an OpenWeather account and obtain your personal API key (free)
 - Follow the steps below to prepare your Raspberry Pi 4 and install the software
-- 3D print the frame with integrated speakerphone holder (optional)
+- 3D print the frame with integrated speakerphone cradle (optional)
 
 ---
 
@@ -32,11 +32,15 @@ The following steps are required:
 **Waveshare 8-inch DSI LCD Display** — This is the display Lumina Frame is designed for. It connects directly to the Raspberry Pi 4 via the DSI ribbon cable connector.
 https://www.waveshare.com/8inch-DSI-LCD-C.htm
 
-**USB Speakerphone** — A USB speakerphone provides both microphone input and speaker output in a single device. I used the RayBit USB Speakerphone available here: **[add URL]**. Any USB speakerphone with echo noise cancellation should work, although I am not positive because I have not tested others. Use the RayBit if you want to use the 3D printed frame because it is designed to hold the RayBit.
+**USB Speakerphone** — A USB speakerphone provides both microphone input and speaker output in a single device. I used the RayBit USB Speakerphone available here: **[add URL]**. Any USB speakerphone with echo noise cancellation should work, although I am cannot say for certain because I have not tested others. Use the RayBit if you want to use the 3D printed frame because it is specifically designed to hold the RayBit.
 
 > **Important:** Plug the USB speakerphone into one of the **black USB 2.0 ports** (closest to the sides of the board), not the blue USB 3.0 ports (in the middle). The USB 3.0 controller on the Pi (VL805) generates more RF noise, which can interfere with the speakerphone's mic circuitry, and can occasionally introduce timing differences during enumeration that prevent the speakerphone from being assigned the correct sound card index.
 
 **MicroSD Card** — A 64 GB or larger card rated **A2** and **V30** (or U3) from a reputable brand is recommended. The A2 rating ensures good random I/O performance for a responsive OS, and V30/U3 provides solid write speed well beyond what the Raspberry Pi 4's SD interface requires. Purchase from a reputable retailer to avoid counterfeit cards. I used this one: **[add URL]**
+
+**Phillips Head Screws (Optional)** - You will need seven screws if you decide to use the optional 3D printed frame. They are available here: [insert URL]
+
+**USB C Male to Female 90 Degree Angle Adapter (Optional)** - If you use the optional 3D printed frame and want the power cord at the bottom, you will need an angle adapter. I used this one: https://www.amazon.com/dp/B0B462QMMK?ref_=ppx_hzsearch_conn_dt_b_fed_asin_title_11&th=1.
 
 ---
 
@@ -90,9 +94,9 @@ Click **Sign In** and create a free account. Once logged in, navigate to your pr
 
 ## Prepare Your Raspberry Pi 4
 
-These instructions assume you already have a Raspberry Pi 4 set up and running **Raspberry Pi OS (64-bit, Debian Trixie)**. If not, use the Raspberry Pi Imager to install it. Be sure to use the **64-bit** version — the 32-bit version may produce memory errors.
+These instructions assume you already have a Raspberry Pi 4 set up and running **Raspberry Pi OS (64-bit, Debian Trixie)**. If not, use the Raspberry Pi Imager to install it, which is available here: https://www.raspberrypi.com/software/. Be sure to use the **64-bit** Debian Trixie version — the 32-bit version may produce memory errors.
 
-> **Note:** Raspberry Pi OS Trixie is based on Debian 13 with kernel 6.12 LTS and Python 3.13. The Raspberry Pi Foundation recommends doing a clean install rather than upgrading in place from a previous release such as Bookworm.  The Debian OS also often asks for the Pi's password when asked to take certain actions, including many commands that begin with "sudo".  If asked, type the password for your device and press Enter.
+> **Note:** Raspberry Pi OS Trixie is based on Debian 13 with kernel 6.12 LTS and Python 3.13. The Raspberry Pi Foundation recommends doing a clean install rather than upgrading in place from a previous release such as Bookworm.  The Debian OS also often asks for the Pi's password when asked to take certain actions, including many commands that begin with "sudo".  Whenever asked, type the password for your device and press Enter.
 
 ### 1. Update Your System
 
@@ -134,13 +138,13 @@ Press **Ctrl + X**, then **Y**, then **Enter** to save. Then reboot:
 sudo reboot
 ```
 
-After rebooting, the Waveshare display should be active. If the display remains black, confirm the DSI ribbon cable is fully seated at both ends and that the cable's gold contacts are oriented correctly.
+After rebooting, the Waveshare display should be active. If the display remains blank, confirm the DSI ribbon cable is fully seated at both ends and that the cable's gold contacts are oriented correctly.
 
 > **Note:** If you later run `sudo apt full-upgrade` and the display stops working, re-open `/boot/firmware/config.txt` and verify the `dtoverlay` line is still present. A system upgrade can occasionally overwrite kernel overlay files, and re-saving the config line and rebooting is all that is needed to restore normal operation.
 
 ### 3. Reorient the Display Screen (Optional)
 
-If you are going to put the display in a frame and want to have the power port on the Raspberry Pi at the bottom, you will need to reorient the axes of the display screen. To do this [use instructions from Wiki page]. Hint- after clicking **Apply** you may need to click the **Ok** button on the touchscreen itself instead of with your mouse if you are connected via Raspberry Pi Connect.
+If you are going to put the display in the 3d printed or other frame and want to have the power port on the Raspberry Pi at the bottom of the frame, you will need to reorient the axes of the display screen. To do so, follow the instructions under the heading "Trixie/Bookworm Display Rotation in the display's wiki at https://www.waveshare.com/wiki/8inch_DSI_LCD_(C). Hint- after clicking **Apply** on the last step you may need to click the **Ok** button on the touchscreen itself instead of with your mouse if you are connected via Raspberry Pi Connect.
 
 Then reboot:
 
@@ -150,7 +154,11 @@ sudo reboot
 
 ### 4. Disable the Virtual Keyboard - Squeekboard (Optional)
 
-The Trixie OS uses Wayland and the system automatically launches the Squeekboard on screen keyboard whenever a text field is touched. If you prefer to stop the keyboard from popping up, you must disable Squeekboard in Raspberry Pi Configuration.  To do this [Add how here] 
+The Trixie OS uses Wayland and the system automatically launches the Squeekboard on screen keyboard whenever a text field is touched. If you prefer to stop the keyboard from popping up, you must disable it.  To do so, open a terminal and enter the following command:
+
+ ```
+sudo raspi-config nonint do_squeekboard S3
+```
 
 Then reboot:
 
@@ -337,7 +345,7 @@ systemctl --user restart pipewire pipewire-pulse wireplumber
 
 ### 12. Move the Keyword Files
 
-Move the Lumina keyword files to the Porcupine raspberry-pi folder by openeing a terminal and entering the 
+Move the Lumina keyword files to the Porcupine raspberry-pi folder by opening a terminal and entering the 
 following commands: 
 
 ```
@@ -352,7 +360,7 @@ Important - Note there are two blank spaces in each of the above commands – on
 
 ## Run the Program
 
-Make sure your Waveshare DSI display is connected and your USB speakerphone is plugged in. Then open a terminal, navigate to the Lumina folder, activate the virtual environment, and run the program:
+Make sure your Waveshare DSI display is connected and your USB speakerphone is plugged in. Then open a terminal, navigate to the Lumina folder, activate the virtual environment, and run the program by entering these commands:
 
 ```
 cd /home/pi/Lumina
@@ -503,7 +511,7 @@ Add the following content:
 [Desktop Entry]
 Type=Application
 Name=Lumina Frame
-Exec=/bin/bash -c 'cd /home/pi/Lumina && /home/pi/Lumina/venv/bin/python /home/pi/Lumina/Lumina_Frame_Orb.py'
+Exec=/bin/bash -c 'cd /home/pi/Lumina && /home/pi/Lumina/venv/bin/python /home/pi/Lumina/Lumina_Frame.py'
 X-GNOME-Autostart-enabled=true
 ```
 
@@ -549,6 +557,19 @@ Lumina/
 ```
 
 ---
+## Printing and Assembling the Lumina Frame Enclosure
+
+If you would like to use the option frame and speakerphone cradle, follow these instructions.
+
+3D print the frame, cradle, cradle bottom, and four of the tabs [Figure 1].  The STLs for these 3D parts are on this GitHub repository. The recommended setting for slicing the STLs are 0.20mm quality with 25% infill. Only the ______ needs supports.  The metric screw size is _mm x 0._mm x 8mm.  They are available here:
+
+Use four Phillips pan head screws to screw the tabs in place to hold the display on the frame [Figure 2]. Insert the speakerphone in the cradle and put on the bottom and hold it in place with three screws [Figure 3].
+
+Insert the prongs on the speakerphone cradle into the frame [Figure 4]. This is a tight fit and should hole on its own but use superglue to bond it if you would like.
+
+Use the optional angle adapter for the power port.
+
+---
 
 ## Troubleshooting
 
@@ -568,7 +589,7 @@ Verify your Google Gemina API key is valid and is correctly entered in `.env`tha
 Verify your OpenWeather API key is correctly entered in `.env`. New API keys can take a few minutes to activate after registration. Confirm your network connection is working.
 
 **Speaker audio causes Lumina to interrupt itself.**
-The program uses a guarded mic mode that suppresses speaker bleed during AI speech. If self-interruption occurs, try increasing the `threshold` value in the `server_vad` section of the session configuration in `Lumina_Frame9.py`.
+The program uses a guarded mic mode that suppresses speaker bleed during AI speech. If self-interruption occurs, try increasing the `threshold` value in the `server_vad` section of the session configuration in `Lumina_Frame.py`.
 
 **Timers fire but Lumina doesn't announce them.**
 If no active session is open when a timer expires, the program will play a chime and display the timer name on screen instead. This is expected behavior.
