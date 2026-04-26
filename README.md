@@ -30,11 +30,11 @@ The following steps are required:
 **Waveshare 8-inch DSI LCD Display** — This is the display Lumina Frame is designed for. It connects directly to the Raspberry Pi 4 via the DSI ribbon cable connector.
 https://www.waveshare.com/8inch-DSI-LCD-C.htm
 
-**USB Speakerphone** — A USB speakerphone provides both microphone input and speaker output in a single device. Any USB speakerphone should work. Lumina Frame is configured to use card index 1 for audio — verify yours matches using `aplay -l` and `arecord -l` after connecting it.
+**USB Speakerphone** — A USB speakerphone provides both microphone input and speaker output in a single device. I used the RayBit USB Speakerphone available here: **[add URL]**. Any USB speakerphone with echo noise cancellation should work, although I cannot be certain because I have not tested others. Use the RayBit if you want to use the 3D printed frame because it is designed to fit the RayBit. Lumina Frame is configured to use card index 1 for audio — verify yours matches using `aplay -l` and `arecord -l` after connecting it.
 
 > **Important:** Plug the USB speakerphone into one of the **black USB 2.0 ports** (closest to the sides of the board), not the blue USB 3.0 ports (in the middle). The USB 3.0 controller on the Pi (VL805) generates more RF noise, which can interfere with the speakerphone's mic circuitry, and can occasionally introduce timing differences during enumeration that prevent the speakerphone from being assigned the correct sound card index.
 
-**MicroSD Card** — A 64 GB or larger card rated **A2** and **V30** (or U3) from a reputable brand is recommended. The A2 rating ensures good random I/O performance for a responsive OS, and V30/U3 provides solid write speed well beyond what the Raspberry Pi 4's SD interface requires. Purchase from a reputable retailer to avoid counterfeit cards.
+**MicroSD Card** — A 64 GB or larger card rated **A2** and **V30** (or U3) from a reputable brand is recommended. The A2 rating ensures good random I/O performance for a responsive OS, and V30/U3 provides solid write speed well beyond what the Raspberry Pi 4's SD interface requires. Purchase from a reputable retailer to avoid counterfeit cards. I used this one: **[add URL]**
 
 ---
 
@@ -58,7 +58,7 @@ Click **Start Free** in the upper right-hand corner and follow the prompts to cr
 
 After signing up, you will be redirected to a page showing your **AccessKey**. Copy it and keep it in a secure location. You will need it in a later step.
 
-> **Note:** The free PicoVoice tier has usage limits. Lumina Frame uses Porcupine for wake word detection, which draws from your access key's quota.
+> **Note:** The free PicoVoice tier has usage limits. Lumina Frame uses Porcupine for wake word detection, which draws from your access key's quota.  I have not run into any usage limits during normal use of Lumina.
 
 ---
 
@@ -330,8 +330,7 @@ mv /home/pi/Lumina/exit-the-program_en_raspberry-pi_v4_0_0.ppn /home/pi/Lumina/v
 ```
 
 Important - Note there are two blank spaces in each of the above commands – one between 
-"mv" and "/home" and one between ".ppn" and "/home". Be sure to include them. Also 
-there is no space between “lib/” and “python3.13”. 
+"mv" and "/home" and one between ".ppn" and "/home". Be sure to include them. There are no other spaces between the letters. 
 
 ---
 
@@ -553,7 +552,7 @@ If `USE_IP_LOCATION` is `True`, Lumina Frame will attempt to determine your loca
 
 ```
 Lumina/
-├── Lumina_Frame_Bookworm.py  # Main program
+├── Lumina_Frame_Bookworm.py # Main program
 ├── requirements.txt         # Python dependencies
 ├── .env                     # Your API keys (never commit this)
 ├── .env.example             # Template showing required keys
