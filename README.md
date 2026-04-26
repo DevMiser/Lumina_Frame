@@ -3,7 +3,7 @@
 
 Lumina Frame is a voice-activated AI assistant with an integrated AI art generator, running on a Raspberry Pi 4 with an attached DSI touchscreen display and USB speakerphone. Say the wake word **"Hey Lumina"** to start a conversation. Ask questions, request the time or weather, generate and iteratively edit AI artwork, set countdown timers, recall previously saved images, and more — all by voice.
 
-Lumina Frame uses PicoVoice Porcupine for wake-word detection, the OpenAI Realtime API for conversational voice AI, OpenAI's `gpt-image-2` model for AI image generation and editing, and the OpenWeather API for current weather conditions and multi-day forecasts.
+Lumina Frame uses PicoVoice Porcupine for wake-word detection, the OpenAI Realtime API for conversational voice AI, Google Gemini' Nano Banana 2 for AI image generation, and the OpenWeather API for current weather conditions and multi-day forecasts.
 
 A brief demo video of Lumina Frame is here: *(add your link)*
 
@@ -15,9 +15,11 @@ The following steps are required:
 
 - Obtain the necessary hardware — listed below
 - Create an OpenAI account and obtain your personal secret API key
+- Create a Google account and obtain your Gemini API key
 - Create a PicoVoice account and obtain your personal secret access key
 - Create an OpenWeather account and obtain your personal API key
 - Follow the steps below to prepare your Raspberry Pi 4 and install the software
+- 3D print the frame with integrated speakerphone holder (optional)
 
 ---
 
@@ -30,7 +32,7 @@ The following steps are required:
 **Waveshare 8-inch DSI LCD Display** — This is the display Lumina Frame is designed for. It connects directly to the Raspberry Pi 4 via the DSI ribbon cable connector.
 https://www.waveshare.com/8inch-DSI-LCD-C.htm
 
-**USB Speakerphone** — A USB speakerphone provides both microphone input and speaker output in a single device. I used the RayBit USB Speakerphone available here: **[add URL]**. Any USB speakerphone with echo noise cancellation should work, although I cannot be certain because I have not tested others. Use the RayBit if you want to use the 3D printed frame because it is designed to fit the RayBit. Lumina Frame is configured to use card index 1 for audio — verify yours matches using `aplay -l` and `arecord -l` after connecting it.
+**USB Speakerphone** — A USB speakerphone provides both microphone input and speaker output in a single device. I used the RayBit USB Speakerphone available here: **[add URL]**. Any USB speakerphone with echo noise cancellation should work, although I am not positive because I have not tested others. Use the RayBit if you want to use the 3D printed frame because it is designed to hold the RayBit.
 
 > **Important:** Plug the USB speakerphone into one of the **black USB 2.0 ports** (closest to the sides of the board), not the blue USB 3.0 ports (in the middle). The USB 3.0 controller on the Pi (VL805) generates more RF noise, which can interfere with the speakerphone's mic circuitry, and can occasionally introduce timing differences during enumeration that prevent the speakerphone from being assigned the correct sound card index.
 
@@ -46,7 +48,21 @@ Click on **API** in the upper right-hand corner, then sign up for an account and
 
 Once logged in, click on your account icon in the upper right-hand corner and select **API keys**, then click **+ Create new secret key**. Copy your API key and keep it in a secure location. You will need it in a later step.
 
-> **Note:** Your OpenAI API key is used for both the Realtime conversational API and the `gpt-image-2` image generation/editing model. The OpenAI Realtime API requires a paid account with billing enabled. Ensure your account has sufficient credits before running Lumina Frame.
+> **Note:** Your OpenAI API key is used for the Realtime conversational API. The OpenAI Realtime API requires a paid account with billing enabled. Ensure your account has sufficient credits before running Lumina Frame.
+
+---
+
+### 3. Add a new "Create a Google Account" section
+
+Insert it after the OpenWeather section and before "Prepare Your Raspberry Pi 4":
+
+> **### Create a Google Account and Obtain Your Gemini API Key**
+>
+> Open a web browser and navigate to https://aistudio.google.com/.
+>
+> Sign in with your Google account (or create one), then click **Get API key** and follow the prompts to generate a key. Copy it and keep it in a secure location. You will need it in a later step.
+>
+> **Note:** The free Gemini API tier is sufficient for Lumina Frame's image generation. Usage limits apply — if you hit them, wait a few minutes and try again.
 
 ---
 
@@ -74,7 +90,7 @@ Click **Sign In** and create a free account. Once logged in, navigate to your pr
 
 ## Prepare Your Raspberry Pi 4
 
-These instructions assume you already have a Raspberry Pi 4 set up and running **Raspberry Pi OS (64-bit, Trixie)**. If not, use the Raspberry Pi Imager to install it. Be sure to use the **64-bit** version — the 32-bit version may produce memory errors.
+These instructions assume you already have a Raspberry Pi 4 set up and running **Raspberry Pi OS (64-bit, Debian Trixie)**. If not, use the Raspberry Pi Imager to install it. Be sure to use the **64-bit** version — the 32-bit version may produce memory errors.
 
 > **Note:** Raspberry Pi OS Trixie is based on Debian 13 with kernel 6.12 LTS and Python 3.13. The Raspberry Pi Foundation recommends doing a clean install rather than upgrading in place from a previous release such as Bookworm.  The Debian OS also often asks for the Pi's password when asked to take certain actions, including many commands that begin with "sudo".  If asked, type the password for your device and press Enter.
 
@@ -205,7 +221,7 @@ cd /home/pi/Lumina
 nano .env
 ```
 
-Add the following three lines to the file, replacing the placeholder text with your actual keys:
+Add the following four lines to the file, replacing the placeholder text with your actual keys:
 
 ```
 GOOGLE_API_KEY="put your Google API key here between the quotation marks"
@@ -341,7 +357,7 @@ Make sure your Waveshare DSI display is connected and your USB speakerphone is p
 ```
 cd /home/pi/Lumina
 source venv/bin/activate
-python Lumina_Frame_Bookworm.py
+python Lumina_Frame.py
 ```
 
 Wait for the Lumina logo to appear on the DSI display.
@@ -356,7 +372,7 @@ Say the wake word:
 
 > **"Hey Lumina"**
 
-When Lumina detects its wake word, it will begin listening. The display will show a waveform that animates in sync with Lumina's voice as it responds. You can also say **"Hey Lumina"** at any time to interrupt Lumina mid-response and ask a new question.
+When Lumina detects its wake word, it will begin listening. The display will show an animated orb that pulses in sync with Lumina's voice as it responds. You can also say **"Hey Lumina"** at any time to interrupt Lumina mid-response and ask a new question.
 
 ### Talking to Lumina
 
@@ -382,21 +398,7 @@ Ask Lumina to create AI-generated artwork using natural language. For example:
 
 *Create an image of a bustling Japanese street market at night.*
 
-Lumina will acknowledge your request, generate the image using OpenAI's `gpt-image-2` model, and display it on the DSI screen. The image orientation (landscape, square, or portrait) is chosen automatically based on your display's resolution.
-
-### Editing Images
-
-Once an image is displayed, you can refine it iteratively by asking Lumina to change parts of it. For example:
-
-*Make the sky more orange.*
-
-*Add a cat sitting on the rocks.*
-
-*Remove the tree on the left.*
-
-*Change it to a snowy winter scene.*
-
-Each edit builds on the currently displayed image, so you can keep refining it until you're happy with the result. If no image is currently displayed, Lumina will let you know there is nothing to edit.
+Lumina will acknowledge your request, generate the image using Google Gemini Nano Banana 2, and display it on the DSI screen. The image orientation (landscape, square, or portrait) is chosen automatically based on your display's resolution.
 
 ### Saving Images
 
@@ -500,13 +502,12 @@ Description=Lumina Frame
 After=graphical.target
 
 [Service]
-[Service]
 User=pi
 WorkingDirectory=/home/pi/Lumina
 Environment=DISPLAY=:0
 Environment=WAYLAND_DISPLAY=wayland-1
 Environment=XDG_RUNTIME_DIR=/run/user/1000
-ExecStart=/home/pi/Lumina/venv/bin/python /home/pi/Lumina/Lumina_Frame_Bookworm.py
+ExecStart=/home/pi/Lumina/venv/bin/python /home/pi/Lumina/Lumina_Frame.py
 Restart=on-failure
 
 [Install]
@@ -529,7 +530,7 @@ Lumina Frame will now start automatically each time the Raspberry Pi boots.
 
 ## Configuration Reference
 
-The following constants near the top of `Lumina_Frame_Bookworm.py` can be adjusted to suit your setup:
+The following constants near the top of `Lumina_Frame.py` can be adjusted to suit your setup:
 
 | Constant | Default | Description |
 |---|---|---|
@@ -552,7 +553,7 @@ If `USE_IP_LOCATION` is `True`, Lumina Frame will attempt to determine your loca
 
 ```
 Lumina/
-├── Lumina_Frame_Bookworm.py # Main program
+├── Lumina_Frame.py # Main program
 ├── requirements.txt         # Python dependencies
 ├── .env                     # Your API keys (never commit this)
 ├── .env.example             # Template showing required keys
@@ -570,13 +571,13 @@ Lumina/
 Confirm the DSI ribbon cable is fully seated at both ends. Verify the display is enabled in `raspi-config` under Interface Options > Display.
 
 **The screen never blanks, or screen-control voice commands have no effect.**
-Trixie uses Wayland by default, which is fully supported. Confirm that the `/sys/class/backlight/10-0045/brightness` sysfs path exists by running `ls /sys/class/backlight/`. If the folder name differs, update the `_backlight_path()` function in `Lumina_Frame_Bookworm.py` with the correct name.
+Trixie uses Wayland by default, which is fully supported. Confirm that the `/sys/class/backlight/10-0045/brightness` sysfs path exists by running `ls /sys/class/backlight/`. If the folder name differs, update the `_backlight_path()` function in `Lumina_Frame.py` with the correct name.
 
 **Lumina does not respond to its wake word.**
 Check that your USB speakerphone is recognized at card index 1 using `arecord -l`. Confirm your PicoVoice access key is correctly entered in `.env`.
 
 **Image generation or editing fails.**
-Verify your OpenAI API key is valid and that your account has sufficient credits. Image generation and editing both draw from your OpenAI quota.
+Verify your Google Gemina API key is valid and is correctly entered in `.env`that your account has sufficient credits.
 
 **Weather queries fail or return errors.**
 Verify your OpenWeather API key is correctly entered in `.env`. New API keys can take a few minutes to activate after registration. Confirm your network connection is working.
