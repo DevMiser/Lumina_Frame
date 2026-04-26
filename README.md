@@ -56,16 +56,12 @@ Once logged in, click on your account icon in the upper right-hand corner and se
 
 ---
 
-### 3. Add a new "Create a Google Account" section
+**### Create a Google Account and Obtain Your Gemini API Key**
 
-Insert it after the OpenWeather section and before "Prepare Your Raspberry Pi 4":
+Open a web browser and navigate to https://aistudio.google.com/.
 
-> **### Create a Google Account and Obtain Your Gemini API Key**
->
-> Open a web browser and navigate to https://aistudio.google.com/.
->
-> Sign in with your Google account (or create one), then click **Get API key** and follow the prompts to generate a key. Copy it and keep it in a secure location. You will need it in a later step.
->
+Sign in with your Google account (or create one), then click **Get API key** and follow the prompts to generate a key. Copy it and keep it in a secure location. You will need it in a later step.
+
 > **Note:** The free Gemini API tier is sufficient for Lumina Frame's image generation. Usage limits apply — if you hit them, wait a few minutes and try again.
 
 ---
