@@ -39,6 +39,7 @@ from PIL import Image
 # ---Initialize Pygame
 
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
+os.environ.setdefault('SDL_VIDEODRIVER', 'x11')  # Force X11/XWayland — prevents Wayland compositor alpha bleed-through
 import pygame
 pygame.init()
 pygame.mouse.set_visible(False) # Hide the cursor
@@ -849,6 +850,7 @@ class Visualizer:
         
     def _init_opengl(self):
         glViewport(0, 0, self.WIDTH, self.HEIGHT)
+        glClearColor(0.0, 0.0, 0.0, 1.0)  # Opaque black background (prevents desktop bleed-through on Wayland)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glEnable(GL_PROGRAM_POINT_SIZE) # For particle size scaling
