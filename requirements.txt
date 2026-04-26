@@ -12,6 +12,8 @@ pillow
 pvporcupine
 pyaudio
 pygame
+PyOpenGL
+PyOpenGL_accelerate
 python-dotenv
 scipy
 sounddevice
