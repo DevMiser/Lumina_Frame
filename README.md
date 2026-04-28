@@ -60,9 +60,9 @@ Once logged in, click on **Create API key** amd follow the instructions. Copy yo
 
 Open a web browser and navigate to https://aistudio.google.com/.
 
-Sign in with your Google account (or create one), then click **Create API key**.  Scroll down the page and click on  and follow the prompts to generate a key. Copy it and keep it in a secure location. You will need it in a later step.
+Scroll down the page and click on **Get an API key**. Sign in with your Google account (or create one), then click **Create API key** and follow the prompts to generate a key. Copy it and keep it in a secure location. You will need it in a later step.
 
-> **Note:** The free Gemini API tier is sufficient for Lumina Frame's image generation. Usage limits apply — if you hit them, wait a few minutes and try again.
+> **Note:** The free Gemini API tier is insufficient for using Nano Banana 2 for image generation. You will need to set up a pay-as-you-go billing account connected to you API key.
 
 ---
 
@@ -74,7 +74,7 @@ Click **Start Free** in the upper right-hand corner and follow the prompts to cr
 
 After signing up, you will be redirected to a page showing your **AccessKey**. Copy it and keep it in a secure location. You will need it in a later step.
 
-> **Note:** The free PicoVoice tier has usage limits. Lumina Frame uses Porcupine for wake word detection, which draws from your access key's quota.  I have not run into any usage limits during normal use of Lumina.
+> **Note:** The free PicoVoice tier has usage limits. Lumina Frame uses Porcupine for wake word detection, which draws from your access key's quota.  I have not exceeded the free usage limits during normal use of Lumina.
 
 ---
 
@@ -82,9 +82,9 @@ After signing up, you will be redirected to a page showing your **AccessKey**. C
 
 Open a web browser and navigate to https://openweathermap.org/.
 
-Click **Sign In** and create a free account. Once logged in, navigate to your profile and select **My API keys**. Copy the default key or generate a new one. Keep it in a secure location. You will need it in a later step.
+Click **Get API key** and create a free account. Once logged in, click **API keys**. Copy the default key or generate a new one. Copy it and keep it in a secure location. You will need it in a later step.
 
-> **Note:** The free OpenWeather tier is sufficient for Lumina Frame. It provides access to the current weather endpoint and the 5-day/3-hour forecast endpoint used for weather queries.
+> **Note:** The free tier of OpenWeather is sufficient for Lumina Frame. It provides free access to the current weather endpoint and the 5-day/3-hour forecast endpoint used for weather queries.
 
 ---
 
