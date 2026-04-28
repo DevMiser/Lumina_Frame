@@ -25,7 +25,7 @@ The following steps are required:
 
 ## Hardware Requirements
 
-**Raspberry Pi 4** — A Raspberry Pi 4 is required. The 4 GB RAM model is recommended. Earlier Raspberry Pis and the Raspberry Pi 5 are not supported.
+**Raspberry Pi 4** — A {Raspberry Pi 4](https://www.digikey.com/en/products/detail/raspberry-pi/SC0194-9/10258781?_gl=1*1jc0mgw*_up*MQ..&gclid=96bb71cefcec12563c5c183e3f291002&gclsrc=3p.ds) is required. The 4 GB RAM model is recommended. Earlier Raspberry Pis and the Raspberry Pi 5 are not supported.
 
 **5V Power Supply** — Use the official Raspberry Pi USB-C power supply or equivalent.
 
