@@ -38,7 +38,7 @@ https://www.waveshare.com/8inch-DSI-LCD-C.htm
 
 **MicroSD Card** — A 64 GB or larger card rated **A2** and **V30** (or U3) from a reputable brand is recommended. The A2 rating ensures good random I/O performance for a responsive OS, and V30/U3 provides solid write speed well beyond what the Raspberry Pi 4's SD interface requires. Purchase from a reputable retailer to avoid counterfeit cards. I used a [SanDisk Extreme Pro](https://www.amazon.com/SanDisk-microSDXC-RescuePro-Performance-Smartphones/dp/B09X7BYSFG/).
 
-**Phillips Head Screws (Optional)** - You will need seven screws if you decide to use the optional 3D printed frame. They are available here: [insert URL]
+**Phillips Flat Head Screws (Optional)** - You will need seven [Phillips flat head screws](https://boltdepot.com/Product-Details?product=6854) if you decide to use the optional 3D printed frame. The ones I used are 2.5 x 0.45 x 8mm.
 
 **USB C Male to Female 90 Degree Angle Adapter (Optional)** - If you use the optional 3D printed frame and want the power cord at the bottom, you will need an [angle adapter](https://www.amazon.com/dp/B0B462QMMK?ref_=ppx_hzsearch_conn_dt_b_fed_asin_title_11&th=1).
 
