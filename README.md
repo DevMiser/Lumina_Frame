@@ -494,7 +494,7 @@ You can also press **Ctrl + C** in the terminal.
 
 ---
 
-**## Running Lumina Frame Automatically at Startup (Optional)**
+## Running Lumina Frame Automatically at Startup (Optional)
 
 After everything is working, you may want Lumina Frame to launch automatically when the Raspberry Pi boots. On Raspberry Pi OS Trixie, the most reliable way to do this is with an XDG autostart file, which tells the Wayfire desktop session to launch Lumina Frame automatically once the display, audio, and all session services are fully up.
 
