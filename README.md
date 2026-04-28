@@ -48,9 +48,9 @@ https://www.waveshare.com/8inch-DSI-LCD-C.htm
 
 Open a web browser and navigate to https://openai.com/.
 
-Click on **API** in the upper right-hand corner, then sign up for an account and follow the prompts.
+Click on the dropdown menu for **Log in** in the upper right-hand corner, then click on **API Platform** and sign up for an account.
 
-Once logged in, click on your account icon in the upper right-hand corner and select **API keys**, then click **+ Create new secret key**. Copy your API key and keep it in a secure location. You will need it in a later step.
+Once logged in, click on **Create API key** amd follow the instructions. Copy your API key and keep it in a secure location. You will need it in a later step.
 
 > **Note:** Your OpenAI API key is used for the Realtime conversational API. The OpenAI Realtime API requires a paid account with billing enabled. Ensure your account has sufficient credits before running Lumina Frame.
 
@@ -60,7 +60,7 @@ Once logged in, click on your account icon in the upper right-hand corner and se
 
 Open a web browser and navigate to https://aistudio.google.com/.
 
-Sign in with your Google account (or create one), then click **Get API key** and follow the prompts to generate a key. Copy it and keep it in a secure location. You will need it in a later step.
+Sign in with your Google account (or create one), then click **Create API key**.  Scroll down the page and click on  and follow the prompts to generate a key. Copy it and keep it in a secure location. You will need it in a later step.
 
 > **Note:** The free Gemini API tier is sufficient for Lumina Frame's image generation. Usage limits apply — if you hit them, wait a few minutes and try again.
 
