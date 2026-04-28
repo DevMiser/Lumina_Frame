@@ -140,7 +140,9 @@ After rebooting, the Waveshare display should be active. If the display remains 
 
 ### 3. Reorient the Display Screen (Optional)
 
-If you are going to put the display in the 3d printed or other frame and want to have the power port on the Raspberry Pi at the bottom of the frame, you will need to reorient the axes of the display screen. To do so, follow the instructions under the heading "Trixie/Bookworm Display Rotation in the display's wiki at https://www.waveshare.com/wiki/8inch_DSI_LCD_(C). Hint- after clicking **Apply** on the last step you may need to click the **Ok** button on the touchscreen itself instead of with your mouse if you are connected via Raspberry Pi Connect.
+If you are going to put the display in the 3D-printed or other frame and want to have the power port on the Raspberry Pi at the bottom of the frame, you will need to reorient the axes of the display screen. To do so, follow the instructions under the heading **Trixie/Bookworm Display Rotation** in the display's [wiki](https://www.waveshare.com/wiki/8inch_DSI_LCD_(C)). 
+
+> **Hint:** after clicking **Apply** on the last step you may need to click the **Ok** button on the touchscreen itself instead of with your mouse if you are connected via Raspberry Pi Connect.
 
 Then reboot:
 
@@ -150,7 +152,7 @@ sudo reboot
 
 ### 4. Disable the Virtual Keyboard - Squeekboard (Optional)
 
-The Trixie OS uses Wayland and the system automatically launches the Squeekboard on screen keyboard whenever a text field is touched. If you prefer to stop the keyboard from popping up, you must disable it.  To do so, open a terminal and enter the following command:
+The Trixie OS uses Wayland and the system automatically launches the Squeekboard on screen keyboard whenever a text field is touched. If you prefer to stop the keyboard from popping up, you can disable it.  To do so, open a terminal and enter the following command:
 
  ```
 sudo raspi-config nonint do_squeekboard S3
@@ -248,7 +250,7 @@ Open a terminal and enter:
 sudo nano /etc/modprobe.d/alsa-base.conf
 ```
 
-If you are using the same USB speakerphone as the one used in this project, paste the following lines into the file:
+If you are using the RayBit USB speakerphone recommended for this project, paste the following lines into the file:
 
 ```
 options snd_bcm2835 index=-2
@@ -341,7 +343,7 @@ systemctl --user restart pipewire pipewire-pulse wireplumber
 
 ### 12. Move the Keyword Files
 
-Move the Lumina keyword files to the Porcupine raspberry-pi folder by opening a terminal and entering the 
+Move the Lumina keyword files to the Porcupine raspberry-pi keywords folder by opening a terminal and entering the 
 following commands: 
 
 ```
@@ -388,21 +390,23 @@ Once awake, speak naturally. Lumina will respond conversationally. For example:
 
 *What will the weather be like on Friday?*
 
-*What is the capital of Australia?*
+*Who won the last Men's World Cup?*
+
+*Explain entropy.*
 
 ### Generating Images
 
 Ask Lumina to create AI-generated artwork using natural language. For example:
 
-*Draw a lighthouse on a rocky coast at sunset.*
+*Draw an apple orchard at sunset.*
 
-*Paint a portrait of a fox in the style of Van Gogh.*
+*Paint a cheeseburger in the style of Van Gogh.*
 
 *Generate a schematic of a time machine.*
 
-*Create an image of a bustling Japanese street market at night.*
+*Create an image of chipmunks racing go-carts.*
 
-Lumina will acknowledge your request, generate the image using Google Gemini Nano Banana 2, and display it on the DSI screen. The image orientation (landscape, square, or portrait) is chosen automatically based on your display's resolution.
+Lumina will acknowledge your request, generate the image using Google Gemini Nano Banana 2, and display it on the display screen. The image orientation (landscape, square, or portrait) is chosen automatically based on your display's resolution.
 
 ### Saving Images
 
@@ -511,9 +515,11 @@ Exec=/bin/bash -c 'cd /home/pi/Lumina && /home/pi/Lumina/venv/bin/python /home/p
 X-GNOME-Autostart-enabled=true
 ```
 
-Press **Ctrl + X**, then **Y**, then **Enter** to save. Lumina Frame will now launch automatically each time the Raspberry Pi boots.
+Press **Ctrl + X**, then **Y**, then **Enter** to save. Lumina Frame will now launch automatically each time the Raspberry Pi boots. The desktop will appear on the display for a few seconds before Lumina Frame launches and the logo appears.
 
 > **Note:** If you ever need to stop Lumina Frame from launching at startup, delete or rename the file: `rm ~/.config/autostart/lumina.desktop`
+
+> **Note:** If the cursor is showing on the display screen after using autostart, gently tap a finger on the touchscreen and the cursor will disappear.
 
 ---
 
@@ -557,11 +563,11 @@ Lumina/
 
 If you would like to use the optional 3D-printed frame and speakerphone cradle, follow these instructions.
 
-3D print the frame, cradle, cradle bottom, and four of the tabs [Figure 1].  The STLs for these 3D parts are on this GitHub repository. The recommended setting for slicing the STLs are 0.20mm quality with 25% infill. Only the ______ needs supports.  The metric screw size is _mm x 0._mm x 8mm.  They are available here:
+3D print the frame, cradle, cradle bottom, and four of the tabs [Figure 1].  The STLs for these 3D parts are on this GitHub repository. The recommended setting for slicing the STLs are 0.20mm quality with 25% infill. Only the frame and cardles require supports while printing **add detail**
 
-Use four Phillips pan head screws to screw the tabs in place to hold the display on the frame [Figure 2]. Insert the speakerphone in the cradle and put on the bottom and hold it in place with three screws [Figure 3].
+Use four of the Phillips pan head screws to screw the tabs in place to hold the display on the frame [Figure 2]. Insert the speakerphone in the cradle, put on the cradle bottom and hold it in place with other three screws [Figure 3].
 
-Insert the prongs on the speakerphone cradle into the frame [Figure 4]. This is a tight fit and should hole on its own but use superglue to bond it if you would like.
+Insert the prongs on the speakerphone cradle into the frame [Figure 4]. This is a tight fit and should hold on its own but use superglue if you want to permanently bond them together.
 
 Use the optional angle adapter for the power port.
 
@@ -579,7 +585,7 @@ Trixie uses Wayland by default, which is fully supported. Confirm that the `/sys
 Check that your USB speakerphone is recognized at card index 1 using `arecord -l`. Confirm your PicoVoice access key is correctly entered in `.env`.
 
 **Image generation or editing fails.**
-Verify your Google Gemina API key is valid and is correctly entered in `.env`that your account has sufficient credits.
+Verify your Google Gemina API key is valid and is correctly entered in `.env`and that your account has sufficient credits.
 
 **Weather queries fail or return errors.**
 Verify your OpenWeather API key is correctly entered in `.env`. New API keys can take a few minutes to activate after registration. Confirm your network connection is working.
