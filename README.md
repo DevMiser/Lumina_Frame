@@ -36,7 +36,7 @@ https://www.waveshare.com/8inch-DSI-LCD-C.htm
 
 > **Important:** Plug the USB speakerphone into one of the **black USB 2.0 ports** (closest to the sides of the board), not the blue USB 3.0 ports (in the middle). The USB 3.0 controller on the Pi (VL805) generates more RF noise, which can interfere with the speakerphone's mic circuitry, and can occasionally introduce timing differences during enumeration that prevent the speakerphone from being assigned the correct sound card index.
 
-**MicroSD Card** — A 64 GB or larger card rated **A2** and **V30** (or U3) from a reputable brand is recommended. The A2 rating ensures good random I/O performance for a responsive OS, and V30/U3 provides solid write speed well beyond what the Raspberry Pi 4's SD interface requires. Purchase from a reputable retailer to avoid counterfeit cards. I used this one: **[add URL]**
+**MicroSD Card** — A 64 GB or larger card rated **A2** and **V30** (or U3) from a reputable brand is recommended. The A2 rating ensures good random I/O performance for a responsive OS, and V30/U3 provides solid write speed well beyond what the Raspberry Pi 4's SD interface requires. Purchase from a reputable retailer to avoid counterfeit cards. I used a [SanDisk Extreme Pro](https://www.amazon.com/SanDisk-microSDXC-RescuePro-Performance-Smartphones/dp/B09X7BYSFG/).
 
 **Phillips Head Screws (Optional)** - You will need seven screws if you decide to use the optional 3D printed frame. They are available here: [insert URL]
 
