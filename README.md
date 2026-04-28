@@ -40,7 +40,7 @@ https://www.waveshare.com/8inch-DSI-LCD-C.htm
 
 **Phillips Head Screws (Optional)** - You will need seven screws if you decide to use the optional 3D printed frame. They are available here: [insert URL]
 
-**USB C Male to Female 90 Degree Angle Adapter (Optional)** - If you use the optional 3D printed frame and want the power cord at the bottom, you will need an angle adapter. I used this one: https://www.amazon.com/dp/B0B462QMMK?ref_=ppx_hzsearch_conn_dt_b_fed_asin_title_11&th=1.
+**USB C Male to Female 90 Degree Angle Adapter (Optional)** - If you use the optional 3D printed frame and want the power cord at the bottom, you will need an [angle adapter](https://www.amazon.com/dp/B0B462QMMK?ref_=ppx_hzsearch_conn_dt_b_fed_asin_title_11&th=1).
 
 ---
 
