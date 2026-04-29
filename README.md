@@ -25,9 +25,9 @@ The following steps are required:
 
 ## Hardware Requirements
 
-**Raspberry Pi 4** — A [Raspberry Pi 4](https://www.digikey.com/en/products/detail/raspberry-pi/SC0194-9/10258781?_gl=1*1jc0mgw*_up*MQ..&gclid=96bb71cefcec12563c5c183e3f291002&gclsrc=3p.ds) is required. The 4 GB RAM model is recommended. Earlier Raspberry Pis and the Raspberry Pi 5 are not supported.
+**Raspberry Pi 4** — A [Raspberry Pi 4](https://www.canakit.com/raspberry-pi-4-2gb.html)) is required. 2 GB of RAM model or more is recommended. Earlier Raspberry Pis and the Raspberry Pi 5 are not supported.
 
-**5V Power Supply** — Use the official Raspberry Pi USB-C power supply or equivalent.
+**5V Power Supply** — Use the [official Raspberry Pi USB-C power supply](https://www.canakit.com/official-raspberry-pi-4-power-supply-black.html) or equivalent.
 
 **Waveshare 8-inch DSI LCD Display** — This is the display Lumina Frame is designed for. It connects directly to the Raspberry Pi 4 via the DSI ribbon cable connector.
 https://www.waveshare.com/8inch-DSI-LCD-C.htm
