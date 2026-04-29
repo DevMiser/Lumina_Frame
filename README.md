@@ -31,7 +31,7 @@ The following steps are required:
 
 **Waveshare 8-inch DSI LCD Display** — The [Waveshare 8-inch Display](https://www./8inch-DSI-LCD-C.htmwaveshare.com) is the one Lumina and its 3D-printable frame are designed for. It connects directly to the Raspberry Pi 4 via the DSI ribbon cable connector.
 
-**USB Speakerphone** — A USB speakerphone provides both microphone input and speaker output in a single device. I used the [RayBit USB Speakerphone](https://www.amazon.com/dp/B0B4JTMQ9H/). Any USB speakerphone with echo noise cancellation should work, although I am cannot say for certain because I have not tested others. Use the RayBit if you want to use the 3D printed frame because it is specifically designed to hold the RayBit.
+**USB Speakerphone** — A USB speakerphone provides both microphone input and speaker output in a single device. I used the [RayBit USB Speakerphone](https://www.amazon.com/dp/B0B4JTMQ9H/). Any USB speakerphone with echo noise cancellation should work, although I cannot say for certain because I have not tested others. Use the RayBit if you want to use the 3D printed frame because it is specifically designed to hold the RayBit.
 
 > **Important:** Plug the USB speakerphone into one of the **black USB 2.0 ports** (closest to the sides of the board), not the blue USB 3.0 ports (in the middle). The USB 3.0 controller on the Pi (VL805) generates more RF noise, which can interfere with the speakerphone's mic circuitry, and can occasionally introduce timing differences during enumeration that prevent the speakerphone from being assigned the correct sound card index.
 
