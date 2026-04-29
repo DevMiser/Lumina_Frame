@@ -25,12 +25,11 @@ The following steps are required:
 
 ## Hardware Requirements
 
-**Raspberry Pi 4** — A [Raspberry Pi 4](https://www.canakit.com/raspberry-pi-4-2gb.html)) is required. 2 GB of RAM model or more is recommended. Earlier Raspberry Pis and the Raspberry Pi 5 are not supported.
+**Raspberry Pi 4** — A [Raspberry Pi 4](https://www.canakit.com/raspberry-pi-4-2gb.html) is required. 2 GB of RAM or more is recommended. Earlier Raspberry Pis and the Raspberry Pi 5 are not supported.
 
 **5V Power Supply** — Use the [official Raspberry Pi USB-C power supply](https://www.canakit.com/official-raspberry-pi-4-power-supply-black.html) or equivalent.
 
-**Waveshare 8-inch DSI LCD Display** — This is the display Lumina Frame is designed for. It connects directly to the Raspberry Pi 4 via the DSI ribbon cable connector.
-https://www.waveshare.com/8inch-DSI-LCD-C.htm
+**Waveshare 8-inch DSI LCD Display** — The [Waveshare 8-inch Display](https://www./8inch-DSI-LCD-C.htmwaveshare.com) is the one Lumina and its 3D-printable frame are designed for. It connects directly to the Raspberry Pi 4 via the DSI ribbon cable connector.
 
 **USB Speakerphone** — A USB speakerphone provides both microphone input and speaker output in a single device. I used the [RayBit USB Speakerphone](https://www.amazon.com/dp/B0B4JTMQ9H/). Any USB speakerphone with echo noise cancellation should work, although I am cannot say for certain because I have not tested others. Use the RayBit if you want to use the 3D printed frame because it is specifically designed to hold the RayBit.
 
