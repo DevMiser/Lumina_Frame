@@ -612,7 +612,6 @@ def set_timer(label, duration_seconds):
         viz.pre_countdown_state = viz.state
         viz.state = 'countdown'
 
-    # Build a human-readable duration string
     mins, secs = divmod(duration_seconds, 60)
     hrs, mins = divmod(mins, 60)
     parts = []
@@ -2054,9 +2053,6 @@ class Realtime:
         print("\nListening for wake word...")
 
 def _app_logic(visualizer):
-    """Audio/wake-word loop — runs in a background thread so the pygame
-    rendering loop can execute on the main thread (required by SDL2/OpenGL ES
-    on Raspberry Pi Bookworm's KMS/DRM stack)."""
     global viz
     url = "wss://api.openai.com/v1/realtime?model=gpt-realtime-1.5"
     porcupine, pa = None, None
