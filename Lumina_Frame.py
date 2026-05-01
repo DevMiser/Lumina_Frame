@@ -5,13 +5,12 @@ import datetime
 import difflib
 import io
 import json
-import math
 import numpy as np
 import os
-import random
 import pvporcupine
 import pyaudio
 import queue
+import random
 import sounddevice # this import suppresses abberant ALSA lib messages
 import struct
 import subprocess
@@ -144,6 +143,16 @@ LUMINA = ("""
     - You can cancel a running timer with cancel_timer and check remaining time with get_timer_status.
     - When a timer finishes, you will be notified via a system message and should announce it to the user.
     - If the user asks to set a timer without a specific name, use 'timer' as the label.
+
+    # Volume Control
+    - You can adjust the speaker volume when the user asks to change, increase,
+      decrease, raise, lower, or set the volume.
+    - Call the set_volume tool with either a specific level (10-100) or a direction
+      ("up" or "down") for relative adjustment.
+    - For requests like "set volume to 50 percent", pass level=50.
+    - For "louder", "turn it up", or "increase the volume", pass direction="up".
+    - For "quieter", "turn it down", or "decrease the volume", pass direction="down".
+    - After adjusting, confirm the new volume level to the user.
     """
 )
 
@@ -180,9 +189,11 @@ ALWAYS_ON_ENABLED = True
 ALWAYS_ON_START_HOUR = 8    # 8:00 AM
 ALWAYS_ON_END_HOUR = 21     # 9:00 PM
 
+current_volume = 80
+
 # --- ALSA Volume Helpers ---
 
-def _set_alsa_capture(gain_pct: int) -> bool:
+def set_alsa_capture(gain_pct: int) -> bool:
     """Set ALSA microphone capture volume. Typical range: 0–100."""
     try:
         result = subprocess.run(
@@ -194,7 +205,7 @@ def _set_alsa_capture(gain_pct: int) -> bool:
         print(f"amixer error: {e}")
         return False
 
-def _set_alsa_playback(vol_pct: int) -> bool:
+def set_alsa_playback(vol_pct: int) -> bool:
     """Set ALSA speaker playback volume."""
     try:
         result = subprocess.run(
@@ -236,9 +247,9 @@ def get_best_aspect_ratio(width, height):
 
 # --- Chime (fallback when a timer fires after the session ends) ---
 
-_pa_instance = None
+pa_instance = None
 
-def _play_chime():
+def play_chime():
     """Play a short 880 Hz beep three times (1-second apart) using pygame.mixer."""
     if not pygame.mixer.get_init():
         print("Chime: pygame mixer not initialized.")
@@ -269,22 +280,22 @@ def _play_chime():
 
 # --- Persistent timer state (survives inactivity timeouts / session restarts) ---
 
-_timers = {}              # label -> {"timer": threading.Timer, "start": float, "duration": float}
-_timers_lock = threading.Lock()
+timers = {}              # label -> {"timer": threading.Timer, "start": float, "duration": float}
+timers_lock = threading.Lock()
 
-# Reference to the currently active Realtime session.  _fire_timer uses this so it
+# Reference to the currently active Realtime session.  fire_timer uses this so it
 # always announces through whichever session is open at the moment the timer expires.
-_active_session = None
-_active_session_lock = threading.Lock()
+active_session = None
+active_session_lock = threading.Lock()
 
-def _fire_timer(label):
+def fire_timer(label):
     """Called by threading.Timer when a countdown expires.
     Announces through the currently active session (if any) or falls back to a chime and display."""
-    with _timers_lock:
-        _timers.pop(label, None)
+    with timers_lock:
+        timers.pop(label, None)
 
-    with _active_session_lock:
-        session = _active_session
+    with active_session_lock:
+        session = active_session
 
     session_live = (
         session is not None
@@ -312,7 +323,7 @@ def _fire_timer(label):
         session.sock.send({"type": "response.create"})
     else:
         print(f"Timer '{label}' fired — no active session, playing chime.")
-        threading.Thread(target=_play_chime, daemon=True).start()
+        threading.Thread(target=play_chime, daemon=True).start()
         if viz is not None:
             viz.set_text("Timer Finished", f"The '{label}' timer has finished.")
 
@@ -320,10 +331,10 @@ def _fire_timer(label):
                 time.sleep(3)
                 if viz is None:
                     return
-                with _timers_lock:
-                    any_timers = bool(_timers)
+                with timers_lock:
+                    any_timers = bool(timers)
                 if viz.state == 'text':
-                    viz.state = 'countdown' if any_timers else (viz.pre_countdown_state or 'logo')
+                    viz.state = 'countdown' if anytimers else (viz.pre_countdown_state or 'logo')
 
             threading.Thread(target=_revert_after_finish, daemon=True).start()
 
@@ -348,7 +359,7 @@ def set_always_on(enabled):
         "The screen will now follow the normal inactivity timeout."
     )
 
-def _backlight_path():
+def backlight_path():
     """Return the first sysfs backlight brightness path, or None."""
     try:
         entries = os.listdir("/sys/class/backlight")
@@ -358,16 +369,16 @@ def _backlight_path():
         pass
     return None
 
-_bl_path = None   # cached on first call
+bl_path = None   # cached on first call
 
 def blank_screen():
-    global _bl_path
-    if _bl_path is None:
-        _bl_path = _backlight_path() or ""
+    global bl_path
+    if bl_path is None:
+        bl_path = backlight_path() or ""
 
-    if _bl_path:
+    if bl_path:
         try:
-            with open(_bl_path, "w") as f:
+            with open(bl_path, "w") as f:
                 f.write("0")
             return
         except OSError:
@@ -378,7 +389,7 @@ def blank_screen():
         os.system("vcgencmd display_power 0 1")
 
 def generate_gemini_image(prompt):
-    """Calls Gemini API to generate an image. Returns PIL Image or None."""
+    """Calls Gemini API (Nano Banana 2) to generate an image. Returns PIL Image or None."""
     print(f"Sending prompt to Gemini: {prompt}")
 
     try:
@@ -472,7 +483,7 @@ def get_current_weather(location=None):
     except Exception:
         return "I was unable to retrieve the weather right now. Please try again in a moment."
 
-def _resolve_forecast_date(date_str):
+def resolve_forecast_date(date_str):
     """Resolve a date string to a datetime.date object.
     Accepts: None/'tomorrow', a weekday name, or an ISO 'YYYY-MM-DD' string.
     Returns (date, error_string).  error_string is None on success."""
@@ -504,7 +515,7 @@ def _resolve_forecast_date(date_str):
 def get_weather_forecast(location=None, date=None):
     """Fetches a 5-day/3-hour weather forecast from OpenWeather for a specific day.
     Defaults to the device's detected location and tomorrow if no arguments are provided."""
-    target_date, err = _resolve_forecast_date(date)
+    target_date, err = resolve_forecast_date(date)
     if err:
         return err
 
@@ -574,7 +585,7 @@ def get_weather_forecast(location=None, date=None):
     except Exception:
         return "I was unable to retrieve the forecast right now. Please try again in a moment."
 
-def _set_timer(label, duration_seconds):
+def set_timer(label, duration_seconds):
     """Create (or replace) a named countdown timer."""
     try:
         duration_seconds = int(duration_seconds)
@@ -583,14 +594,14 @@ def _set_timer(label, duration_seconds):
     if duration_seconds <= 0:
         return "Duration must be greater than zero."
 
-    with _timers_lock:
+    with timers_lock:
         # Cancel existing timer with the same label before replacing
-        if label in _timers:
-            _timers[label]["timer"].cancel()
+        if label in timers:
+            timers[label]["timer"].cancel()
             print(f"Timer '{label}' replaced.")
 
-        t = threading.Timer(duration_seconds, _fire_timer, args=[label])
-        _timers[label] = {
+        t = threading.Timer(duration_seconds, fire_timer, args=[label])
+        timers[label] = {
             "timer": t,
             "start": time.time(),
             "duration": float(duration_seconds),
@@ -616,26 +627,26 @@ def _set_timer(label, duration_seconds):
     print(f"Timer '{label}' set for {duration_str}.")
     return f"Timer '{label}' set for {duration_str}."
 
-def _cancel_timer(label):
+def cancel_timer(label):
     """Cancel a running timer by label. If label is omitted and exactly one
     timer is running, cancel that one without asking."""
-    with _timers_lock:
+    with timers_lock:
         if not label:
-            if len(_timers) == 1:
-                label = next(iter(_timers))
-            elif len(_timers) == 0:
+            if len(timers) == 1:
+                label = next(iter(timers))
+            elif len(timers) == 0:
                 return "There are no timers currently running."
             else:
-                names = ", ".join(f"'{n}'" for n in _timers)
+                names = ", ".join(f"'{n}'" for n in timers)
                 return f"Multiple timers are running ({names}). Which one should I cancel?"
-        entry = _timers.pop(label, None)
+        entry = timers.pop(label, None)
     if entry:
         entry["timer"].cancel()
         print(f"Timer '{label}' cancelled.")
         return f"Timer '{label}' cancelled."
     return f"No timer named '{label}' is currently running."
 
-def _get_timer_status(label):
+def get_timer_status(label):
     """Return remaining time for one or all active timers."""
     def _fmt_remaining(entry):
         elapsed = time.time() - entry["start"]
@@ -651,8 +662,8 @@ def _get_timer_status(label):
             parts.append(f"{secs} second{'s' if secs != 1 else ''}")
         return " and ".join(parts)
 
-    with _timers_lock:
-        snapshot = dict(_timers)
+    with timers_lock:
+        snapshot = dict(timers)
 
     if label:
         if label not in snapshot:
@@ -665,7 +676,7 @@ def _get_timer_status(label):
              for lbl, entry in snapshot.items()]
     return "Active timers — " + "; ".join(lines) + "."
 
-def _get_ip_location():
+def get_ip_location():
     """Fetch city/region from the device's public IP via ip-api.com.
     Returns (q_string, display_string) on success, or None on failure."""
     try:
@@ -775,12 +786,12 @@ def find_saved_image(description):
     return None, None, 0
 
 def wake_screen():
-    if _bl_path:
+    if bl_path:
         try:
-            max_path = _bl_path.replace("brightness", "max_brightness")
+            max_path = bl_path.replace("brightness", "max_brightness")
             with open(max_path) as f:
                 max_val = f.read().strip()
-            with open(_bl_path, "w") as f:
+            with open(bl_path, "w") as f:
                 f.write(max_val)
             return
         except OSError:
@@ -793,7 +804,7 @@ def wake_screen():
 # Visualizer Class
 # --------------------------------------------------------------------------------
 
-# Module-level reference to the Visualizer singleton, used by _fire_timer.
+# Module-level reference to the Visualizer singleton, used by fire_timer.
 viz = None
 
 class Visualizer:
@@ -821,10 +832,10 @@ class Visualizer:
         self.BACKGROUND = (0, 0, 0)
         self.TEXT_COLOR = (173, 216, 230)
 
-        self.font = pygame.font.Font(None, 74)
-        self.text_font = pygame.font.SysFont("Arial Black", 36)
+        self.font = pygame.font.Font(None, 48)
+        self.text_font = pygame.font.SysFont("Arial Black", 48)
         self.countdown_font = pygame.font.SysFont("Arial Black", 120)
-        self.countdown_label_font = pygame.font.SysFont("Arial Black", 48)
+        self.countdown_label_font = pygame.font.SysFont("Arial Black", 74)
 
         self.audio_data = np.zeros(CHUNK_SIZE, dtype=np.float32)
         self.audio_bands = {"bass": 0.0, "mid": 0.0, "treble": 0.0, "volume": 0.0}
@@ -853,8 +864,6 @@ class Visualizer:
         glClearColor(0.0, 0.0, 0.0, 1.0)  # Opaque black background (prevents desktop bleed-through on Wayland)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        glEnable(GL_PROGRAM_POINT_SIZE) # For particle size scaling
-        glEnable(GL_POINT_SPRITE)       # Required for gl_PointCoord in GL 2.1
 
         # --- ORB SHADER (Raymarched Sphere) ---
         orb_vertex = """#version 120
@@ -892,78 +901,15 @@ class Visualizer:
         }
         """
         
-        # --- PARTICLE SHADER (Orbiting Rings) ---
-        particle_vertex = """#version 120
-        uniform vec2 u_resolution;
-        uniform float u_time;
-        uniform float u_treble;
-        uniform float u_bass;
-        
-        attribute vec3 a_position; // x, y, random_offset
-        
-        varying float v_alpha;
-
-        void main() {
-            // Rotation speed based on time and treble (pitch)
-            float speed = u_time * (0.5 + u_treble * 5.0) + a_position.z;
-            
-            // Expand orbit on plosives (bass)
-            float current_radius = a_position.x * (1.0 + u_bass * 0.5);
-            
-            vec2 pos = vec2(
-                cos(speed) * current_radius,
-                sin(speed) * current_radius * 0.4 // 0.4 flattens it to an orbital ring
-            );
-            
-            // Tilt the orbit slightly
-            mat2 tilt = mat2(cos(0.3), -sin(0.3), sin(0.3), cos(0.3));
-            pos = tilt * pos;
-
-            // Normalize to screen
-            vec2 screen_pos = pos / min(u_resolution.x, u_resolution.y) * 2.0;
-            
-            gl_Position = vec4(screen_pos, 0.0, 1.0);
-            gl_PointSize = 2.0 + (u_treble * 3.0); // Particles grow with treble
-            
-            // Fade particles at the edges of the orbit
-            v_alpha = 0.3 + (0.7 * abs(sin(speed)));
-        }
-        """
-        particle_fragment = """#version 120
-        varying float v_alpha;
-        void main() {
-            // Soft circular particles
-            vec2 circCoord = 2.0 * gl_PointCoord - 1.0;
-            if (dot(circCoord, circCoord) > 1.0) {
-                discard;
-            }
-            gl_FragColor = vec4(0.8, 0.9, 1.0, v_alpha);
-        }
-        """
-
         self.orb_shader = compileProgram(
             compileShader(orb_vertex, GL_VERTEX_SHADER),
             compileShader(orb_fragment, GL_FRAGMENT_SHADER)
         )
-        self.particle_shader = compileProgram(
-            compileShader(particle_vertex, GL_VERTEX_SHADER),
-            compileShader(particle_fragment, GL_FRAGMENT_SHADER)
-        )
-
         # Full screen quad for orb
         self.quad_vertices = np.array([
             -1.0, -1.0,  1.0, -1.0, -1.0,  1.0,
              1.0, -1.0,  1.0,  1.0, -1.0,  1.0
         ], dtype=np.float32)
-
-        # Generate 2000 particles in a ring distribution
-        num_particles = 2000
-        # Format: radius, unused_y, random_time_offset
-        self.particles = np.zeros((num_particles, 3), dtype=np.float32)
-        for i in range(num_particles):
-            # Base orbit radius between 0.4 and 0.8
-            self.particles[i][0] = 0.4 + (random.random() * 0.4) 
-            self.particles[i][2] = random.random() * math.pi * 2 # Random position in orbit
 
     def load_logo(self):
         """Load and scale the logo image for pygame display."""
@@ -1058,8 +1004,8 @@ class Visualizer:
         """Render all active timers as label + MM:SS (or HH:MM:SS), stacked vertically."""
         # Ensure drawing to ui_surface, not screen
         self.ui_surface.fill(self.BACKGROUND) 
-        with _timers_lock:
-            snapshot = list(_timers.items())
+        with timers_lock:
+            snapshot = list(timers.items())
         if not snapshot:
             return
         now = time.time()
@@ -1111,7 +1057,7 @@ class Visualizer:
             bass = self.audio_bands["bass"]
             treble = self.audio_bands["treble"]
 
-        # 1. Draw Orb
+        # Draw Orb
         glUseProgram(self.orb_shader)
         
         loc_res = glGetUniformLocation(self.orb_shader, "u_resolution")
@@ -1128,27 +1074,6 @@ class Visualizer:
         glVertexPointer(2, GL_FLOAT, 0, self.quad_vertices)
         glDrawArrays(GL_TRIANGLES, 0, 6)
         glDisableClientState(GL_VERTEX_ARRAY)
-
-        # 2. Draw Orbiting Particles
-        glUseProgram(self.particle_shader)
-        
-        loc_p_res = glGetUniformLocation(self.particle_shader, "u_resolution")
-        loc_p_time = glGetUniformLocation(self.particle_shader, "u_time")
-        loc_p_treble = glGetUniformLocation(self.particle_shader, "u_treble")
-        loc_p_bass = glGetUniformLocation(self.particle_shader, "u_bass")
-        
-        glUniform2f(loc_p_res, self.WIDTH, self.HEIGHT)
-        glUniform1f(loc_p_time, current_time)
-        glUniform1f(loc_p_treble, treble)
-        glUniform1f(loc_p_bass, bass)
-
-        pos_attrib = glGetAttribLocation(self.particle_shader, "a_position")
-        glEnableVertexAttribArray(pos_attrib)
-        glVertexAttribPointer(pos_attrib, 3, GL_FLOAT, GL_FALSE, 0, self.particles)
-        
-        glDrawArrays(GL_POINTS, 0, len(self.particles))
-        
-        glDisableVertexAttribArray(pos_attrib)
         glUseProgram(0)
 
     def draw_pygame_ui_to_gl(self):
@@ -1162,13 +1087,10 @@ class Visualizer:
         glBindTexture(GL_TEXTURE_2D, tex_id)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-        
-        # Changed GL_RGBA to GL_RGB
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self.WIDTH, self.HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, texture_data)
-        
+
         glEnable(GL_TEXTURE_2D)
         
-        # Set color to white so the texture isn't tinted by any lingering shader colors
         glColor4f(1.0, 1.0, 1.0, 1.0) 
         
         glBegin(GL_QUADS)
@@ -1207,8 +1129,8 @@ class Visualizer:
                 elif self.state == 'image':
                     self.display_image()
                 elif self.state == 'countdown':
-                    with _timers_lock:
-                        any_timers = bool(_timers)
+                    with timers_lock:
+                        any_timers = bool(timers)
                     if not any_timers:
                         self.state = self.pre_countdown_state or 'logo'
                         continue
@@ -1439,18 +1361,18 @@ class Realtime:
         self.show_logo_requested = False
 
     def start(self):
-        global _active_session
+        global active_session
         self.sock.on_msg = self.on_msg
         self.sock.connect()
-        self.audio.on_wake_word = self._handle_wake_word_interrupt
-        self.audio.on_exit_word = self._handle_exit_word
+        self.audio.on_wake_word = self.handle_wake_word_interrupt
+        self.audio.on_exit_word = self.handle_exit_word
         self.audio.set_mode('active')  # User just said "Lumina", expect speech
         self.audio.start_streams()
         threading.Thread(target=self.audio.send_mic, args=(self.sock,), daemon=True).start()
-        with _active_session_lock:
-            _active_session = self
+        with active_session_lock:
+            active_session = self
 
-    def _handle_wake_word_interrupt(self):
+    def handle_wake_word_interrupt(self):
         """Called when wake word is detected during an active session (guarded mode)."""
         print("Lumina detected - interrupting AI and switching to active mode")
 
@@ -1466,7 +1388,7 @@ class Realtime:
         # Switch to active mode - start sending mic audio to Realtime API
         self.audio.set_mode('active')
 
-    def _handle_exit_word(self):
+    def handle_exit_word(self):
         """Called when 'exit-the-program' is detected during a session."""
         print("Exit word detected during session - flagging for shutdown")
         self.exit_requested = True
@@ -1792,6 +1714,41 @@ class Realtime:
                                 "additionalProperties": False
                             }
                         }
+                        ,
+                        {
+                            "type": "function",
+                            "name": "set_volume",
+                            "description": (
+                                "Adjusts the speaker playback volume. Use this when the user asks to "
+                                "change, increase, decrease, raise, lower, or set the volume. "
+                                "Provide either a specific level (10-100) OR a direction for relative "
+                                "adjustment, but not both. Each relative step changes volume by 10 "
+                                "percentage points. Volume cannot go below 10 percent."
+                            ),
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "level": {
+                                        "type": "integer",
+                                        "description": (
+                                            "Absolute volume level from 10 to 100. Use this when the user "
+                                            "requests a specific volume (e.g., 'set volume to 50 percent')."
+                                        )
+                                    },
+                                    "direction": {
+                                        "type": "string",
+                                        "enum": ["up", "down"],
+                                        "description": (
+                                            "Relative volume adjustment direction. 'up' increases by 10 percent, "
+                                            "'down' decreases by 10 percent. Use this for requests like "
+                                            "'louder', 'quieter', 'turn it up', 'turn it down'."
+                                        )
+                                    }
+                                },
+                                "required": [],
+                                "additionalProperties": False
+                            }
+                        }
                     ],
                     "tool_choice": "auto",
                     "audio": {
@@ -1841,7 +1798,7 @@ class Realtime:
             # Clear any stale audio in OpenAI's input buffer to prevent
             # residual audio from triggering speech detection
             self.sock.send({"type": "input_audio_buffer.clear"})
-            threading.Thread(target=_set_alsa_capture, args=(30,), daemon=True).start()
+            threading.Thread(target=set_alsa_capture, args=(30,), daemon=True).start()
 
         elif typ == "response.done":
             response_obj = msg.get("response", {})
@@ -1864,12 +1821,12 @@ class Realtime:
                 # The main loop will switch to active once the buffer is empty.
                 self.ai_responding = False
                 self.pending_active_switch = True
-                threading.Thread(target=_set_alsa_capture, args=(38,), daemon=True).start()
+                threading.Thread(target=set_alsa_capture, args=(38,), daemon=True).start()
             elif status == "cancelled":
                 # Response was cancelled (by wake word interrupt)
                 # Stay in active mode - user is about to speak
                 self.ai_responding = False
-                threading.Thread(target=_set_alsa_capture, args=(38,), daemon=True).start()
+                threading.Thread(target=set_alsa_capture, args=(38,), daemon=True).start()
             else:
                 # Tool call in progress or other status - stay in current mode
                 self.ai_responding = False
@@ -1885,7 +1842,7 @@ class Realtime:
             raw_args = msg.get("arguments", "{}")
             print(f"Tool call: {func_name}  args={raw_args}")
             threading.Thread(
-                target=self._execute_tool,
+                target=self.execute_tool,
                 args=(call_id, func_name, raw_args),
                 daemon=True
             ).start()
@@ -1893,7 +1850,7 @@ class Realtime:
         elif typ == "error":
             print(f"Server error: {msg.get('error')}")
 
-    def _execute_tool(self, call_id, func_name, raw_args):
+    def execute_tool(self, call_id, func_name, raw_args):
         """Executes a tool function and sends the result back to the Realtime API."""
         if not call_id:
             print("Tool call received with no call_id, skipping.")
@@ -1915,13 +1872,13 @@ class Realtime:
                 output = get_weather_forecast(args.get("location"), args.get("date"))
 
             elif func_name == "set_timer":
-                output = _set_timer(args.get("label", "timer"), args.get("duration_seconds"))
+                output = set_timer(args.get("label", "timer"), args.get("duration_seconds"))
 
             elif func_name == "cancel_timer":
-                output = _cancel_timer(args.get("label"))
+                output = cancel_timer(args.get("label"))
 
             elif func_name == "get_timer_status":
-                output = _get_timer_status(args.get("label"))
+                output = get_timer_status(args.get("label"))
 
             elif func_name == "generate_image":
                 prompt = args.get("prompt", "")
@@ -2048,6 +2005,25 @@ class Realtime:
                 self.visualizer.state = 'logo'
                 output = "The Lumina logo is now displayed on the screen."
 
+            elif func_name == "set_volume":
+                global current_volume
+                level = args.get("level")
+                direction = args.get("direction")
+                if level is not None:
+                    new_vol = max(10, min(100, int(level)))
+                elif direction == "up":
+                    new_vol = min(100, current_volume + 10)
+                elif direction == "down":
+                    new_vol = max(10, current_volume - 10)
+                else:
+                    new_vol = current_volume
+                success = set_alsa_playback(new_vol)
+                if success:
+                    current_volume = new_vol
+                    output = f"Volume set to {new_vol}%."
+                else:
+                    output = "Failed to adjust volume. The amixer command returned an error."
+
             else:
                 output = f"Unknown function: {func_name}"
 
@@ -2067,13 +2043,13 @@ class Realtime:
         self.sock.send({"type": "response.create"})
 
     def stop(self):
-        global _active_session
+        global active_session
         self._stop_event.set()
         self.audio.stop_streams()
         self.sock.close()
-        with _active_session_lock:
-            if _active_session is self:
-                _active_session = None
+        with active_session_lock:
+            if active_session is self:
+                active_session = None
         print("Realtime session stopped.")
         print("\nListening for wake word...")
 
@@ -2096,13 +2072,13 @@ def _app_logic(visualizer):
 
         pa = pyaudio.PyAudio()
 
-        global _pa_instance
-        _pa_instance = pa
+        global pa_instance
+        pa_instance = pa
 
         # Optionally resolve the default weather location from the device's public IP.
         if USE_IP_LOCATION:
             global DEFAULT_WEATHER_Q, DEFAULT_LOCATION_DISPLAY
-            result = _get_ip_location()
+            result = get_ip_location()
             if result:
                 DEFAULT_WEATHER_Q, DEFAULT_LOCATION_DISPLAY = result
                 print(f"IP geolocation: default location set to '{DEFAULT_LOCATION_DISPLAY}'.")
@@ -2127,7 +2103,7 @@ def _app_logic(visualizer):
 
         while True:
             try:
-
+                
                 # --- Always-on display / screen-blanking logic ---
                 in_always_on = is_always_on_hours()
 
@@ -2180,12 +2156,7 @@ def _app_logic(visualizer):
                     if screen_blanked:
                         wake_screen()
                         screen_blanked = False
-                        # Restore display to image or logo
-                        if visualizer.last_image_surface is not None:
-                            visualizer.current_image_surface = visualizer.last_image_surface
-                            visualizer.state = 'image'
-                        else:
-                            visualizer.state = 'logo'
+                        visualizer.state = 'visualizing'
                         print("Screen woken by wake word.")
 
                     # Close the wake-word stream to free up the mic
@@ -2287,8 +2258,8 @@ def _app_logic(visualizer):
                             last_interaction_time = time.time()
 
                         # If any timers are active, show the countdown (unless screen is blanked)
-                        with _timers_lock:
-                            timers_active = bool(_timers)
+                        with timers_lock:
+                            timers_active = bool(timers)
                         if timers_active and visualizer.state != 'blanked':
                             visualizer.pre_countdown_state = visualizer.state
                             visualizer.state = 'countdown'
@@ -2332,10 +2303,12 @@ def main():
 
     # --- Set ALSA Mixer Levels ---
     # Run 'amixer scontrols' to verify control names for your speakerphone.
-    playback_ok = _set_alsa_playback(80)
-    capture_ok = _set_alsa_capture(35)
-    print(f"ALSA playback (PCM 80%): {'OK' if playback_ok else 'FAILED'}")
+    playback_ok = set_alsa_playback(current_volume)
+    capture_ok = set_alsa_capture(35)
+    print(f"ALSA playback (PCM {current_volume}%): {'OK' if playback_ok else 'FAILED'}")
     print(f"ALSA capture  (Mic 35%): {'OK' if capture_ok else 'FAILED'}")
+
+    pygame.mouse.set_visible(False) # Hide the cursor
 
     visualizer = Visualizer()
     viz = visualizer
