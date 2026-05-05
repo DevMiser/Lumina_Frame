@@ -18,7 +18,7 @@ The following steps are required:
 
 - Obtain the necessary hardware — listed below
 - Create an OpenAI account and obtain your personal secret API key
-- Create a Google account and obtain your Gemini API key *(required only if using the Nano Banana script)*
+- Create a Google account and obtain your Gemini API key *(optional - required only if using the Nano Banana script)*
 - Create a PicoVoice account and obtain your personal secret access key (free)
 - Create an OpenWeather account and obtain your personal API key (free)
 - Follow the steps below to prepare your Raspberry Pi 4 and install the software
