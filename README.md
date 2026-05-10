@@ -1,5 +1,5 @@
 # Lumina Frame
-### AI Voice Assistant & Art Generator for Raspberry Pi 4
+### AI Chatbot & Art Generator for Raspberry Pi 4
 
 Lumina Frame is a voice-activated AI assistant with an integrated AI art generator, running on a Raspberry Pi 4 with an attached DSI touchscreen display and USB speakerphone. Say the wake word **"Hey Lumina"** to start a conversation. Ask questions, request the time or weather, generate AI artwork, set countdown timers, recall previously saved images, and more — all by voice.
 
