@@ -609,7 +609,7 @@ If you would like to use the optional 3D-printed frame and speakerphone cradle, 
 
 3D print the frame, cradle, cradle bottom, and four of the tabs [Figure 1]. The STLs for these 3D parts are on this GitHub repository. The recommended setting for slicing the STLs are 0.20mm quality with 30% infill. Only the frame and cradle require supports while printing. Be certain to block supports for the screw holes.
 
-Mount the Raspeberry Pi to the back of the display per the display's instructions.  Connect the optional angle adapter, insert the display in the frame and use four of the Phillips pan head screws to screw on the tabs to secure the display [Figure 2]. Tighten the screws only enough to hold the tabs in place.  Overtightening them will squeeze the display and cause damage or distortions. Insert the speakerphone in the cradle [Figure 3]. Have only a short length of the USB speakerphone cord on the outside of the cradle.
+Mount the Raspberry Pi to the back of the display per the display's instructions.  Connect the optional angle adapter, insert the display in the frame and use four of the Phillips pan head screws to screw on the tabs to secure the display [Figure 2]. Tighten the screws only enough to hold the tabs in place.  Overtightening them will squeeze the display and cause damage or distortions. Insert the speakerphone in the cradle [Figure 3]. Have only a short length of the USB speakerphone cord on the outside of the cradle.
 
 <img width="890" height="239" alt="image" src="https://github.com/user-attachments/assets/d5408800-a6ca-42f5-a333-5f7fe8cc71c7" />
 
