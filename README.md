@@ -611,7 +611,14 @@ If you would like to use the optional 3D-printed frame and speakerphone cradle, 
 
 Mount the Raspeberry Pi to the back of the display per the display's instructions.  Connect the optional angle adapter, insert the display in the frame and use four of the Phillips pan head screws to screw on the tabs to secure the display [Figure 2]. Tighten the screws only enough to hold the tabs in place.  Overtightening them will squeeze the display and cause damage or distortions. Insert the speakerphone in the cradle [Figure 3]. Have only a short length of the USB speakerphone cord on the outside of the cradle.
 
+<img width="890" height="239" alt="image" src="https://github.com/user-attachments/assets/d5408800-a6ca-42f5-a333-5f7fe8cc71c7" />
+
+
+
 Put on the cradle bottom and hold it in place with the other three screws [Figure 4]. Insert the prongs on the speakerphone cradle into the frame [Figure 5]. This is a tight fit and should hold on its own but use glue if you want to permanently bond them together. Then plug the USB speakerphone cord into one of the **black USB 2.0 ports** [Figure 6].
+
+<img width="885" height="214" alt="image" src="https://github.com/user-attachments/assets/1a98d05c-ecc9-4273-9d6c-6dda8dff18d2" />
+
 
 
 ---
