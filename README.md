@@ -607,13 +607,12 @@ Lumina/
 
 If you would like to use the optional 3D-printed frame and speakerphone cradle, follow these instructions.
 
-3D print the frame, cradle, cradle bottom, and four of the tabs [Figure 1]. The STLs for these 3D parts are on this GitHub repository. The recommended setting for slicing the STLs are 0.20mm quality with 25% infill. Only the frame and cradle require supports while printing. *(add detail)*
+3D print the frame, cradle, cradle bottom, and four of the tabs [Figure 1]. The STLs for these 3D parts are on this GitHub repository. The recommended setting for slicing the STLs are 0.20mm quality with 30% infill. Only the frame and cradle require supports while printing. Be certain to block supports for the screw holes.
 
-Use four of the Phillips pan head screws to screw the tabs in place to hold the display on the frame [Figure 2]. Insert the speakerphone in the cradle, put on the cradle bottom and hold it in place with the other three screws [Figure 3].
+Mount the Raspeberry Pi to the back of the display per the display's instructions.  Connect the optional angle adapter, insert the display in the frame and use four of the Phillips pan head screws to screw on the tabs to secure the display [Figure 2]. Tighten the screws only enough to hold the tabs in place.  Overtightening them will squeeze the display and cause damage or distortions. Insert the speakerphone in the cradle [Figure 3]. Have only a short length of the USB speakerphone cord on the outside of the cradle.
 
-Insert the prongs on the speakerphone cradle into the frame [Figure 4]. This is a tight fit and should hold on its own but use superglue if you want to permanently bond them together.
+Put on the cradle bottom and hold it in place with the other three screws [Figure 4]. Insert the prongs on the speakerphone cradle into the frame [Figure 5]. This is a tight fit and should hold on its own but use glue if you want to permanently bond them together. Then plug the USB speakerphone cord into one of the **black USB 2.0 ports** [Figure 6].
 
-Use the optional angle adapter for the power port.
 
 ---
 
