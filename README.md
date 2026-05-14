@@ -2,7 +2,9 @@
 ### AI Chatbot & Image Generator for Raspberry Pi 4
 
 
+
 <img width="1920" height="1079" alt="81abc409-adb3-4941-a323-09c6d96ef6e6" src="https://github.com/user-attachments/assets/9bf5f5d1-d3bc-421a-bc61-911cfbab9899" />
+
 
 
 
