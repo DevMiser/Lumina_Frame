@@ -18,7 +18,7 @@ Lumina Frame uses Picovoice Porcupine for wake-word detection, OpenAI's GPT Real
 - **`Lumina_Frame_Nano_Banana.py`** — Uses Google Gemini's Nano Banana 2 for AI image generation.
 - **`Lumina_Frame_GPT_Image_2.py`** — Uses OpenAI's GPT Image 2 for AI image generation and also supports editing previously generated images by voice.
 
-A brief demo video showing Lumina Frame in action is here: *(add your link)*
+A brief demo video showing Lumina Frame in action is *[here](https://youtu.be/Ac2-k5G60gw)*.
 
 ---
 
