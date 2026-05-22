@@ -11,7 +11,7 @@
 <br>
 <br>
 
-Lumina Frame is a voice-activated AI assistant with an integrated AI art generator, running on a Raspberry Pi 4 with an attached 8-inch LCD display and USB speakerphone. Say the wake word **"Hey Lumina"** to start a conversation. Ask questions, request the time or weather, generate AI artwork, set countdown timers, recall previously saved images, and more — all by voice.
+Lumina Frame is a voice-activated AI assistant with an integrated AI art generator, running on a Raspberry Pi 4 with an attached 8-inch LCD display and USB speakerphone. Say the wake word **"Hey Lumina"** to start a conversation. Ask questions, request the time or weather, generate AI artwork, switch between three interaction modes (normal, conversational and strict), set countdown timers, recall previously saved images, and more — all by voice.
 
 Lumina Frame uses Picovoice Porcupine for wake-word detection, OpenAI's GPT Realtime 2 API for speech-to-speech conversational voice AI, and the OpenWeather API for current weather conditions and multi-day forecasts. Two scripts are available that differ in how they generate images:
 
@@ -404,7 +404,7 @@ Say the wake word:
 
 > **"Hey Lumina"**
 
-When Lumina detects its wake word, it will begin listening. The display will show an animated orb that pulses in sync with Lumina's voice as it responds. You can also say **"Hey Lumina"** at any time to interrupt Lumina mid-response and ask a new question.
+When Lumina detects its wake word, it will begin listening. The display will show an animated orb that pulses in sync with Lumina's voice as it responds. In **normal** and **strict** modes you can also say **"Hey Lumina"** at any time to interrupt Lumina mid-response and ask a new question. In **conversational** mode you can interrupt simply by speaking — no wake word required. See **Interaction Modes** below for details.
 
 ### Talking to Lumina
 
@@ -419,6 +419,41 @@ Once awake, speak naturally. Lumina will respond conversationally. For example:
 *Who won the last Men's World Cup?*
 
 *Explain entropy.*
+
+### Interaction Modes
+
+Lumina supports three interaction modes that change how turns are gated between you and Lumina. You can switch modes at any time by voice, and the selected mode persists across sessions until you change it again or restart the program.
+
+**Normal mode** *(default at startup)*
+
+- Lumina's microphone is guarded while it is speaking. To interrupt mid-response, say **"Hey Lumina"**.
+- Between turns you can speak freely without the wake word.
+- Best general-purpose mode.
+
+**Conversational mode**
+
+- You can interrupt Lumina mid-sentence simply by speaking — no wake word required.
+- OpenAI's voice activity detector decides when you have started and stopped speaking, so Lumina's mic stays active during its own responses.
+- Best for free-flowing back-and-forth dialog in a quiet room.
+
+**Strict mode** *(also called wake-word-only mode)*
+
+- You must say **"Hey Lumina"** before **every** new request, including short follow-ups.
+- The session and conversation history stay intact between turns, so Lumina can still reference what you just discussed.
+- Between turns the orb disappears and the display reverts to the logo, the last generated image, or a running timer.
+- Useful in noisy rooms or when you do not want Lumina listening continuously.
+
+**Switching modes by voice:**
+
+*Switch to conversational mode.*
+
+*Turn on strict mode.* (or *Only respond to the wake word.* / *Wake-word only mode.*)
+
+*Go back to normal mode.*
+
+Lumina will briefly confirm the change.
+
+> **Note:** The startup default is set by the `INTERACTION_MODE` constant near the top of the script. Change it from `"normal"` to `"conversational"` or `"strict"` if you want a different default at boot.
 
 ### Generating Images
 
@@ -584,6 +619,8 @@ The following constants near the top of either script can be adjusted to suit yo
 | Constant | Default | Description |
 |---|---|---|
 | `INACTIVITY_TIMEOUT` | `3` seconds | How long Lumina waits after silence before ending a session |
+| `STRICT_INACTIVITY_TIMEOUT` | `30` seconds | How long a strict-mode session stays alive waiting for the next wake-word turn before closing. |
+| `INTERACTION_MODE` | `"normal"` | Startup interaction mode. One of `"normal"`, `"conversational"`, or `"strict"`. Can be changed by voice at runtime. |
 | `SCREEN_BLANK_TIMEOUT` | `600` seconds | How long before the display blanks due to inactivity |
 | `ALWAYS_ON_ENABLED` | `True` | Whether the always-on display schedule is active at startup |
 | `ALWAYS_ON_START_HOUR` | `8` | Hour (24h) when always-on mode begins each day |
@@ -646,6 +683,9 @@ Trixie uses Wayland by default, which is fully supported. Confirm that the `/sys
 **Lumina does not respond to its wake word.**
 Check that your USB speakerphone is recognized at card index 1 using `arecord -l`. Confirm your PicoVoice access key is correctly entered in `.env`.
 
+**Lumina does not respond to follow-up questions without the wake word.**
+This is expected behavior in strict mode. Say "Hey Lumina" before each new request, or ask Lumina to switch to normal or conversational mode.
+
 **Image generation fails.**
 If using `Lumina_Frame_Nano_Banana.py`, verify your Google Gemini API key is valid and correctly entered in `.env` and that your account has sufficient credits. If using `Lumina_Frame_GPT_Image_2.py`, verify your OpenAI API key is valid and that your account has sufficient credits.
 
@@ -656,7 +696,7 @@ Verify your OpenAI API key is valid and that your account has sufficient credits
 Verify your OpenWeather API key is correctly entered in `.env`. New API keys can take a few minutes to activate after registration. Confirm your network connection is working.
 
 **Speaker audio causes Lumina to interrupt itself.**
-The program uses a guarded mic mode that suppresses speaker bleed during AI speech. If self-interruption occurs, try increasing the `threshold` value in the `server_vad` section of the session configuration in your script.
+In **normal** and **strict** modes, the program uses a guarded mic that suppresses speaker bleed during AI speech, so self-interruption should be rare. In **conversational** mode, the mic stays active during AI speech, which makes self-interruption more likely. If it occurs, try increasing the threshold value in the server_vad section of the session configuration in your script, or ask Lumina to switch to normal or strict mode.
 
 **Timers fire but Lumina doesn't announce them.**
 If no active session is open when a timer expires, the program will play a chime and display the timer name on screen instead. This is expected behavior.
