@@ -54,7 +54,7 @@ The following steps are required:
 
 **USB C Male to Female 90 Degree Angle Adapter (Optional)** - If you use the optional 3D printed frame and want the power cord at the bottom, you will need an [angle adapter](https://www.amazon.com/dp/B0B462QMMK?ref_=ppx_hzsearch_conn_dt_b_fed_asin_title_11&th=1).
 
-**Anti Glare Screeo Protector (Optional)** - If you would like the LCD display to be less reflective, you can cover it with an anti-glare screen protector. I used [this one](https://www.amazon.com/dp/B0892TBYP9/), which can be trimmed to fit.
+**Anti-Glare Screen Protector (Optional)** - If you would like the LCD display to be less reflective, you can cover it with an anti-glare screen protector. I used [this one](https://www.amazon.com/dp/B0892TBYP9/), which can be trimmed to fit.
 
 ---
 
