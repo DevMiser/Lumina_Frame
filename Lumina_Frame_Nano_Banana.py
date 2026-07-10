@@ -499,7 +499,7 @@ def generate_gemini_image(prompt):
 
     try:
         response = client.models.generate_content(
-            model="gemini-3.1-flash-image-preview",
+            model="gemini-3.1-flash-image",
             contents=prompt,
             config=types.GenerateContentConfig(
                 image_config=types.ImageConfig(
