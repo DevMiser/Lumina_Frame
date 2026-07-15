@@ -150,6 +150,21 @@ LUMINA_BASE = ("""
     - For "quieter", "turn it down", or "decrease the volume", pass direction="down".
     - After adjusting, confirm the new volume level to the user.
 
+    # Current Information
+    - Your built-in knowledge has a cutoff date. For ANY question that may
+      involve information from after that cutoff — news, sports schedules,
+      scores, election results, prices, product releases, "who won",
+      "when is", "what's the latest" — call the search_web tool with a
+      self-contained version of the user's question.
+    - NEVER answer "I don't know" or mention your knowledge cutoff without
+      first trying the search_web tool.
+    - Do not use search_web for timeless facts you already know (history,
+      math, definitions, general knowledge), for weather (use the weather
+      tools), or for the current time (use get_current_time).
+    - When you get the search result, speak it naturally as your own answer.
+      Do not read URLs, do not cite sources aloud, and do not say "according
+      to my search" or "my search tool found".
+
     # Preambles
     - By default, call tools SILENTLY and speak only the result. Never say
       "let me check that", "let me set that timer", "one moment", "let me
@@ -163,6 +178,7 @@ LUMINA_BASE = ("""
       they run are:
         * generate_image   — e.g. "I'll generate that for you."
         * turn_off_display — e.g. "Turning off the display."
+        * search_web       — e.g. "Let me check on that."
       These take time or visibly change the screen, so a short preamble
       avoids dead air or an unexplained visual change.
     - Do NOT preamble non-tool answers. Never say "let me think about
@@ -546,6 +562,73 @@ def get_current_time():
     """Returns the current date and time as a natural language string."""
     now = datetime.datetime.now()
     return now.strftime("The current date and time is %A, %B %d, %Y at %I:%M %p.")
+
+# Tried in order until one works; the winner is remembered. The '-latest'
+# alias tracks Google's current flash model, so it goes first.
+SEARCH_MODEL_CANDIDATES = [
+    "gemini-flash-latest",
+    "gemini-3.1-flash",
+    "gemini-3-flash",
+    "gemini-2.5-flash",
+]
+_search_model = None
+
+def search_web(query):
+    """Answers a question with current information using Gemini with
+    Google Search grounding. Reuses the existing Gemini client/API key."""
+    global _search_model
+
+    if not query or not query.strip():
+        return "No search question was provided. Ask the user what they want to know."
+
+    today = datetime.datetime.now().strftime("%A, %B %d, %Y")
+    prompt = (
+        f"Today's date is {today}. Answer the following question using current "
+        f"information from the web. Answer concisely in 2-4 sentences of plain "
+        f"spoken prose — no markdown, no lists, no URLs or citations.\n\n"
+        f"Question: {query.strip()}"
+    )
+
+    print(f"Web search: {query.strip()}")
+
+    if _search_model:
+        candidates = [_search_model] + [m for m in SEARCH_MODEL_CANDIDATES
+                                        if m != _search_model]
+    else:
+        candidates = SEARCH_MODEL_CANDIDATES
+
+    for model in candidates:
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                ),
+            )
+            if _search_model != model:
+                _search_model = model
+                print(f"Web search model: {model}")
+            answer = (response.text or "").strip()
+            if answer:
+                return answer
+            return ("The search returned no answer. Let the user know you couldn't "
+                    "find current information on that.")
+        except exceptions.ResourceExhausted:
+            return "The search service is rate-limited right now. Ask the user to try again in a moment."
+        except exceptions.ServiceUnavailable:
+            return "The search service is unavailable right now. Ask the user to try again in a moment."
+        except Exception as e:
+            msg = str(e)
+            if "404" in msg or "NOT_FOUND" in msg:
+                print(f"Search model '{model}' unavailable, trying next candidate...")
+                continue
+            print(f"Web search error: {e}")
+            return "The web search failed. Let the user know and suggest trying again."
+
+    print("Web search failed: no compatible Gemini model available.")
+    return ("The web search failed because no compatible search model is "
+            "available. Let the user know.")
 
 def get_current_weather(location=None):
     """Fetches current weather from OpenWeather for the given location.
@@ -1574,6 +1657,7 @@ class Realtime:
         self.user_speaking = False
         self.visualizer = visualizer_instance
         self.generating_image = False
+        self.tools_in_flight = 0
         self.ai_responding = False
         self.exit_requested = False
         self.pending_active_switch = False
@@ -1801,6 +1885,37 @@ class Realtime:
                                     }
                                 },
                                 "required": ["location", "date"],
+                                "additionalProperties": False
+                            }
+                        },
+                        {
+                            "type": "function",
+                            "name": "search_web",
+                            "description": (
+                                "Searches the web for current, up-to-date information and "
+                                "returns a concise answer. Use this for ANY question about "
+                                "events, news, sports, schedules, scores, prices, releases, "
+                                "or facts that may have changed after your training data "
+                                "ends — never guess or say you don't know without trying "
+                                "this tool first. Do NOT use it for weather (use the "
+                                "weather tools) or timeless facts you already know. "
+                                "Say a brief acknowledgment like 'Let me check on that' "
+                                "before calling, since the search takes a few seconds."
+                            ),
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "query": {
+                                        "type": "string",
+                                        "description": (
+                                            "The question to answer, phrased self-contained: "
+                                            "resolve pronouns and conversation context so the "
+                                            "question makes sense on its own (e.g. 'What teams "
+                                            "play in the next FIFA World Cup match?')."
+                                        )
+                                    }
+                                },
+                                "required": ["query"],
                                 "additionalProperties": False
                             }
                         },
@@ -2227,6 +2342,9 @@ class Realtime:
         except json.JSONDecodeError:
             args = {}
 
+        # Tracked so the session inactivity timeout is suppressed while a
+        # tool is still executing (a web search can take several seconds).
+        self.tools_in_flight += 1
         try:
             if func_name == "get_current_time":
                 output = get_current_time()
@@ -2236,6 +2354,9 @@ class Realtime:
 
             elif func_name == "get_weather_forecast":
                 output = get_weather_forecast(args.get("location"), args.get("date"))
+
+            elif func_name == "search_web":
+                output = search_web(args.get("query", ""))
 
             elif func_name == "set_timer":
                 output = set_timer(args.get("label", "timer"), args.get("duration_seconds"))
@@ -2398,6 +2519,9 @@ class Realtime:
 
         except Exception as e:
             output = f"An error occurred while executing {func_name}: {str(e)}"
+
+        finally:
+            self.tools_in_flight -= 1
 
         print(f"Tool result: {output}")
 
@@ -2574,8 +2698,9 @@ def _app_logic(visualizer):
                                     visualizer.state = 'countdown'
                                 print("Strict mode: visualizer reverted to logo/image after idle.")
 
-                            # Suppress timeout while generating image
-                            if rt_session.generating_image:
+                            # Suppress timeout while a tool call is executing
+                            # (image generation, web search, etc.)
+                            if rt_session.generating_image or rt_session.tools_in_flight > 0:
                                 last_activity_time = time.time()
 
                             # Check if exit word was detected during session
