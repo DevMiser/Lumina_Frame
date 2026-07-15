@@ -11,7 +11,7 @@
 <br>
 <br>
 
-Lumina Frame is a voice-activated AI assistant with an integrated AI art generator, running on a Raspberry Pi 4 with an attached 8-inch LCD display and USB speakerphone. Say the wake word **"Hey Lumina"** to start a conversation. Ask questions — including about current events, news, and sports via built-in web search — request the time or weather, generate AI artwork, switch between three interaction modes (normal, conversational and strict), set countdown timers, recall previously saved images, and more — all by voice.
+Lumina Frame is a voice-activated AI assistant with an integrated AI art generator, running on a Raspberry Pi 4 with an attached 8-inch LCD display and USB speakerphone. Say the wake word **"Hey Lumina"** to start a conversation. Ask questions (including about current events, news, and sports via built-in web search), request the time or weather, generate AI artwork, switch between three interaction modes (normal, conversational and strict), set countdown timers, recall previously saved images, and more — all by voice.
 
 Lumina Frame uses Picovoice Porcupine for wake-word detection, OpenAI's GPT Realtime 2 API for speech-to-speech conversational voice AI, and the OpenWeather API for current weather conditions and multi-day forecasts. Two scripts are available that differ in how they generate images and how they search the web:
 
