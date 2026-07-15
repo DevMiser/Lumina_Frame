@@ -156,6 +156,21 @@ LUMINA_BASE = ("""
     - For "quieter", "turn it down", or "decrease the volume", pass direction="down".
     - After adjusting, confirm the new volume level to the user.
 
+    # Current Information
+    - Your built-in knowledge has a cutoff date. For ANY question that may
+      involve information from after that cutoff — news, sports schedules,
+      scores, election results, prices, product releases, "who won",
+      "when is", "what's the latest" — call the search_web tool with a
+      self-contained version of the user's question.
+    - NEVER answer "I don't know" or mention your knowledge cutoff without
+      first trying the search_web tool.
+    - Do not use search_web for timeless facts you already know (history,
+      math, definitions, general knowledge), for weather (use the weather
+      tools), or for the current time (use get_current_time).
+    - When you get the search result, speak it naturally as your own answer.
+      Do not read URLs, do not cite sources aloud, and do not say "according
+      to my search" or "my search tool found".
+
     # Preambles
     - By default, call tools SILENTLY and speak only the result. Never say
       "let me check that", "let me set that timer", "one moment", "let me
@@ -170,6 +185,7 @@ LUMINA_BASE = ("""
         * generate_image   — e.g. "I'll generate that for you."
         * edit_image       — e.g. "Editing the image now."
         * turn_off_display — e.g. "Turning off the display."
+        * search_web       — e.g. "Let me check on that."
       These take time or visibly change the screen, so a short preamble
       avoids dead air or an unexplained visual change.
     - Do NOT preamble non-tool answers. Never say "let me think about
@@ -536,6 +552,77 @@ def get_current_time():
     """Returns the current date and time as a natural language string."""
     now = datetime.datetime.now()
     return now.strftime("The current date and time is %A, %B %d, %Y at %I:%M %p.")
+
+# Tried in order until one works; the winning combination is remembered.
+SEARCH_MODEL_CANDIDATES = ["gpt-5-mini", "gpt-5", "gpt-4.1-mini", "gpt-4o-mini"]
+SEARCH_TOOL_TYPES = ["web_search", "web_search_preview"]
+_search_model = None
+_search_tool_type = None
+
+def search_web(query):
+    """Answers a question with current information using the OpenAI
+    Responses API's built-in web search tool. Reuses the existing
+    OpenAI client/API key (same one used for image generation)."""
+    global _search_model, _search_tool_type
+
+    if not query or not query.strip():
+        return "No search question was provided. Ask the user what they want to know."
+
+    today = datetime.datetime.now().strftime("%A, %B %d, %Y")
+    prompt = (
+        f"Today's date is {today}. Answer the following question using current "
+        f"information from the web. Answer concisely in 2-4 sentences of plain "
+        f"spoken prose — no markdown, no lists, no URLs or citations.\n\n"
+        f"Question: {query.strip()}"
+    )
+
+    print(f"Web search: {query.strip()}")
+
+    if _search_model:
+        models = [_search_model] + [m for m in SEARCH_MODEL_CANDIDATES
+                                    if m != _search_model]
+    else:
+        models = SEARCH_MODEL_CANDIDATES
+    if _search_tool_type:
+        tool_types = [_search_tool_type] + [t for t in SEARCH_TOOL_TYPES
+                                            if t != _search_tool_type]
+    else:
+        tool_types = SEARCH_TOOL_TYPES
+
+    for model in models:
+        for tool_type in tool_types:
+            try:
+                response = _image_client.responses.create(
+                    model=model,
+                    tools=[{"type": tool_type}],
+                    input=prompt,
+                )
+                if _search_model != model or _search_tool_type != tool_type:
+                    _search_model = model
+                    _search_tool_type = tool_type
+                    print(f"Web search model: {model} (tool: {tool_type})")
+                answer = (getattr(response, "output_text", "") or "").strip()
+                if answer:
+                    return answer
+                return ("The search returned no answer. Let the user know you "
+                        "couldn't find current information on that.")
+            except openai_lib.RateLimitError:
+                return "The search service is rate-limited right now. Ask the user to try again in a moment."
+            except Exception as e:
+                msg = str(e)
+                if ("model" in msg.lower() and ("not found" in msg.lower()
+                        or "does not exist" in msg.lower() or "404" in msg)):
+                    print(f"Search model '{model}' unavailable, trying next candidate...")
+                    break   # next model — no point trying other tool types
+                if "web_search" in msg or "tool" in msg.lower():
+                    print(f"Tool type '{tool_type}' rejected for '{model}': {e}")
+                    continue   # try the other tool type on this model
+                print(f"Web search error: {e}")
+                return "The web search failed. Let the user know and suggest trying again."
+
+    print("Web search failed: no compatible model/tool combination available.")
+    return ("The web search failed because no compatible search model is "
+            "available. Let the user know.")
 
 def get_current_weather(location=None):
     """Fetches current weather from OpenWeather for the given location.
@@ -908,13 +995,13 @@ class Visualizer:
         display_info = pygame.display.Info()
         self.WIDTH = display_info.current_w
         self.HEIGHT = display_info.current_h
-#        self.WIDTH = 600
-#        self.HEIGHT = 400    
+        self.WIDTH = 600
+        self.HEIGHT = 400    
         # Initialize with OpenGL and Double Buffering
         pygame.display.gl_set_attribute(pygame.GL_CONTEXT_MAJOR_VERSION, 2)
         pygame.display.gl_set_attribute(pygame.GL_CONTEXT_MINOR_VERSION, 1)
         self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT), pygame.FULLSCREEN | pygame.DOUBLEBUF | pygame.OPENGL)
-#        self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT), pygame.DOUBLEBUF | pygame.OPENGL)
+        self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT), pygame.DOUBLEBUF | pygame.OPENGL)
         self.WIDTH, self.HEIGHT = self.screen.get_size()
         pygame.mouse.set_visible(False)
         pygame.display.set_caption("Lumina Frame")
@@ -1564,6 +1651,7 @@ class Realtime:
         self.user_speaking = False
         self.visualizer = visualizer_instance
         self.generating_image = False
+        self.tools_in_flight = 0
         self.ai_responding = False
         self.exit_requested = False
         self.pending_active_switch = False
@@ -1791,6 +1879,37 @@ class Realtime:
                                     }
                                 },
                                 "required": ["location", "date"],
+                                "additionalProperties": False
+                            }
+                        },
+                        {
+                            "type": "function",
+                            "name": "search_web",
+                            "description": (
+                                "Searches the web for current, up-to-date information and "
+                                "returns a concise answer. Use this for ANY question about "
+                                "events, news, sports, schedules, scores, prices, releases, "
+                                "or facts that may have changed after your training data "
+                                "ends — never guess or say you don't know without trying "
+                                "this tool first. Do NOT use it for weather (use the "
+                                "weather tools) or timeless facts you already know. "
+                                "Say a brief acknowledgment like 'Let me check on that' "
+                                "before calling, since the search takes a few seconds."
+                            ),
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "query": {
+                                        "type": "string",
+                                        "description": (
+                                            "The question to answer, phrased self-contained: "
+                                            "resolve pronouns and conversation context so the "
+                                            "question makes sense on its own (e.g. 'What teams "
+                                            "play in the next FIFA World Cup match?')."
+                                        )
+                                    }
+                                },
+                                "required": ["query"],
                                 "additionalProperties": False
                             }
                         },
@@ -2242,6 +2361,9 @@ class Realtime:
         except json.JSONDecodeError:
             args = {}
 
+        # Tracked so the session inactivity timeout is suppressed while a
+        # tool is still executing (a web search can take several seconds).
+        self.tools_in_flight += 1
         try:
             if func_name == "get_current_time":
                 output = get_current_time()
@@ -2251,6 +2373,9 @@ class Realtime:
 
             elif func_name == "get_weather_forecast":
                 output = get_weather_forecast(args.get("location"), args.get("date"))
+
+            elif func_name == "search_web":
+                output = search_web(args.get("query", ""))
 
             elif func_name == "set_timer":
                 output = set_timer(args.get("label", "timer"), args.get("duration_seconds"))
@@ -2427,6 +2552,9 @@ class Realtime:
         except Exception as e:
             output = f"An error occurred while executing {func_name}: {str(e)}"
 
+        finally:
+            self.tools_in_flight -= 1
+
         print(f"Tool result: {output}")
 
         self.sock.send({
@@ -2602,8 +2730,9 @@ def _app_logic(visualizer):
                                     visualizer.state = 'countdown'
                                 print("Strict mode: visualizer reverted to logo/image after idle.")
 
-                            # Suppress timeout while generating image
-                            if rt_session.generating_image:
+                            # Suppress timeout while a tool call is executing
+                            # (image generation/editing, web search, etc.)
+                            if rt_session.generating_image or rt_session.tools_in_flight > 0:
                                 last_activity_time = time.time()
 
                             # Check if exit word was detected during session
