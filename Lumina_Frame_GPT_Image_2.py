@@ -995,13 +995,13 @@ class Visualizer:
         display_info = pygame.display.Info()
         self.WIDTH = display_info.current_w
         self.HEIGHT = display_info.current_h
-        self.WIDTH = 600
-        self.HEIGHT = 400    
+#        self.WIDTH = 600
+#        self.HEIGHT = 400    
         # Initialize with OpenGL and Double Buffering
         pygame.display.gl_set_attribute(pygame.GL_CONTEXT_MAJOR_VERSION, 2)
         pygame.display.gl_set_attribute(pygame.GL_CONTEXT_MINOR_VERSION, 1)
         self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT), pygame.FULLSCREEN | pygame.DOUBLEBUF | pygame.OPENGL)
-        self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT), pygame.DOUBLEBUF | pygame.OPENGL)
+#        self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT), pygame.DOUBLEBUF | pygame.OPENGL)
         self.WIDTH, self.HEIGHT = self.screen.get_size()
         pygame.mouse.set_visible(False)
         pygame.display.set_caption("Lumina Frame")
