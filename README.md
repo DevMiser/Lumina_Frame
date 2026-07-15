@@ -11,12 +11,14 @@
 <br>
 <br>
 
-Lumina Frame is a voice-activated AI assistant with an integrated AI art generator, running on a Raspberry Pi 4 with an attached 8-inch LCD display and USB speakerphone. Say the wake word **"Hey Lumina"** to start a conversation. Ask questions, request the time or weather, generate AI artwork, switch between three interaction modes (normal, conversational and strict), set countdown timers, recall previously saved images, and more — all by voice.
+Lumina Frame is a voice-activated AI assistant with an integrated AI art generator, running on a Raspberry Pi 4 with an attached 8-inch LCD display and USB speakerphone. Say the wake word **"Hey Lumina"** to start a conversation. Ask questions — including about current events, news, and sports via built-in web search — request the time or weather, generate AI artwork, switch between three interaction modes (normal, conversational and strict), set countdown timers, recall previously saved images, and more — all by voice.
 
-Lumina Frame uses Picovoice Porcupine for wake-word detection, OpenAI's GPT Realtime 2 API for speech-to-speech conversational voice AI, and the OpenWeather API for current weather conditions and multi-day forecasts. Two scripts are available that differ in how they generate images:
+Lumina Frame uses Picovoice Porcupine for wake-word detection, OpenAI's GPT Realtime 2 API for speech-to-speech conversational voice AI, and the OpenWeather API for current weather conditions and multi-day forecasts. Two scripts are available that differ in how they generate images and how they search the web:
 
 - **`Lumina_Frame_Nano_Banana.py`** — Uses Google Gemini's Nano Banana 2 for AI image generation.
 - **`Lumina_Frame_GPT_Image_2.py`** — Uses OpenAI's GPT Image 2 for AI image generation and also supports editing previously generated images by voice.
+
+> **Performance note:** Both scripts answer current-information questions well, but the Gemini-powered search in the Nano Banana script is considerably faster than the OpenAI web search in the GPT Image 2 script. If quick spoken answers to news/sports questions matter to you, the Nano Banana script gives a noticeably snappier experience.
 
 A brief demo video showing Lumina Frame in action is *[here](https://youtu.be/Ac2-k5G60gw)*.
 
@@ -66,7 +68,7 @@ Click on the dropdown menu for **Log in** in the upper right-hand corner, then c
 
 Once logged in, click on **Create API key** and follow the instructions. Copy your API key and keep it in a secure location. You will need it in a later step.
 
-> **Note:** Your OpenAI API key is used for the Realtime conversational API and, if you are using the GPT Image 2 script, for image generation as well. The OpenAI API requires a paid account with billing enabled. Ensure your account has sufficient credits before running Lumina Frame.
+> **Note:** Your OpenAI API key is used for the Realtime conversational API and, if you are using the GPT Image 2 script, for web search and image generation as well. The OpenAI API requires a paid account with billing enabled. Ensure your account has sufficient credits before running Lumina Frame.
 
 ---
 
@@ -79,6 +81,8 @@ Open a web browser and navigate to https://aistudio.google.com/.
 Scroll down the page and click on **Get an API key**. Sign in with your Google account (or create one), then click **Create API key** and follow the prompts to generate a key. Copy it and keep it in a secure location. You will need it in a later step.
 
 > **Note:** The free Gemini API tier is insufficient for using Nano Banana 2 for image generation. You will need to set up a pay-as-you-go billing account connected to your API key.
+
+>  **Note:** In the Nano Banana script, this same Gemini API key also powers the web-search feature (Gemini with Google Search grounding). No separate key or setup is needed for search
 
 ---
 
@@ -232,6 +236,11 @@ pip install -r requirements.txt
 ```
 
 This may take several minutes on a Raspberry Pi 4.
+
+> **Note:** The web-search feature introduces no new packages, but it does require recent versions of two existing ones: the `openai` package must be version **1.66 or newer** (for the Responses API used by the GPT Image 2 script's web search) and `google-genai` should be current (for the Google Search grounding used by the Nano Banana script). If you installed the requirements a while ago, update them with:
+> ```
+> pip install --upgrade openai google-genai
+> ```
 
 ### 9. Create Your .env File with Your API Keys
 
@@ -419,6 +428,22 @@ Once awake, speak naturally. Lumina will respond conversationally. For example:
 *Who won the last Men's World Cup?*
 
 *Explain entropy.*
+
+### Asking About Current Events (Web Search)
+
+Lumina can answer questions about things that happened after its AI model's knowledge cutoff — news, sports schedules and scores, election results, prices, product releases, and other current information. When you ask a time-sensitive question, Lumina says a brief acknowledgment like *"Let me check on that,"* searches the web, and speaks a concise current answer. For example:
+
+*What teams are playing in the next FIFA World Cup game?*
+
+*How did the stock market do today?*
+
+*Who won last night's Yankees game?*
+
+*What's the latest news about the hurricane?*
+
+No extra setup is required — web search uses the same API key as image generation in each script (the Gemini key in the Nano Banana script, the OpenAI key in the GPT Image 2 script). Lumina answers timeless questions from its own knowledge without searching, and continues to use the dedicated weather tools for weather questions.
+
+> **Performance note:** Searches take a few seconds. The Nano Banana script's Gemini-based search returns answers considerably faster than the GPT Image 2 script's OpenAI web search, which can add several extra seconds of "thinking" time before Lumina responds.
 
 ### Interaction Modes
 
@@ -694,6 +719,12 @@ Verify your OpenAI API key is valid and that your account has sufficient credits
 
 **Weather queries fail or return errors.**
 Verify your OpenWeather API key is correctly entered in `.env`. New API keys can take a few minutes to activate after registration. Confirm your network connection is working.
+
+**Web search fails or Lumina says it couldn't find current information.**
+Both scripts automatically try a list of search models and report each attempt in the terminal, so run the script from a terminal and watch the console output when you ask a current-events question. If you see model-availability errors on the GPT Image 2 script, ensure the `openai` package is version 1.66 or newer (`pip install --upgrade openai`). If every model candidate is rejected, the candidate list is defined in `SEARCH_MODEL_CANDIDATES` near the top of each script and can be updated to newer model names. Also verify the relevant account (Google for Nano Banana, OpenAI for GPT Image 2) has billing enabled and sufficient credits.
+
+**Web search answers are slow.**
+Some delay is normal — the search itself takes a few seconds, and Lumina says "Let me check on that" to cover it. The OpenAI search in the GPT Image 2 script is inherently slower than the Gemini search in the Nano Banana script; if search speed matters most, use the Nano Banana script.
 
 **Speaker audio causes Lumina to interrupt itself.**
 In **normal** and **strict** modes, the program uses a guarded mic that suppresses speaker bleed during AI speech, so self-interruption should be rare. In **conversational** mode, the mic stays active during AI speech, which makes self-interruption more likely. If it occurs, try increasing the threshold value in the server_vad section of the session configuration in your script, or ask Lumina to switch to normal or strict mode.
